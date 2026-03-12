@@ -1,0 +1,649 @@
+{
+  "info": {
+    "name": "HireFlow API",
+    "description": "Complete API collection for HireFlow Hiring Portal",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "BASE_URL", "value": "http://localhost:5000/api/v1" },
+    { "key": "ACCESS_TOKEN", "value": "" },
+    { "key": "REFRESH_TOKEN", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "item": [
+        {
+          "name": "Register - Candidate",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"Test@1234\",\n  \"role\": \"candidate\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "  const data = pm.response.json().data;",
+                "  pm.collectionVariables.set('ACCESS_TOKEN', data.accessToken);",
+                "  pm.collectionVariables.set('REFRESH_TOKEN', data.refreshToken);",
+                "  pm.test('Register successful', () => pm.response.to.have.status(201));",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Register - HR",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HR Manager\",\n  \"email\": \"hr@company.com\",\n  \"password\": \"Test@1234\",\n  \"role\": \"hr\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Register - Mentor",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Senior Mentor\",\n  \"email\": \"mentor@example.com\",\n  \"password\": \"Test@1234\",\n  \"role\": \"mentor\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"Test@1234\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const data = pm.response.json().data;",
+                "  pm.collectionVariables.set('ACCESS_TOKEN', data.accessToken);",
+                "  pm.collectionVariables.set('REFRESH_TOKEN', data.refreshToken);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Get Me",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/auth/me",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/auth/refresh-token",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{REFRESH_TOKEN}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/auth/logout",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/auth/forgot-password",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"john@example.com\"\n}" }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/auth/reset-password/:token",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"password\": \"NewPass@1234\"\n}" }
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/auth/verify-email/:token"
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 Candidate",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/candidate/profile",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/candidate/profile",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"headline\": \"Full Stack Developer | React + Node.js\",\n  \"bio\": \"Passionate developer with 3 years of experience\",\n  \"location\": \"Mumbai, India\",\n  \"phone\": \"+91-9876543210\",\n  \"education\": [\n    {\n      \"institution\": \"IIT Mumbai\",\n      \"degree\": \"B.Tech\",\n      \"fieldOfStudy\": \"Computer Science\",\n      \"startYear\": 2019,\n      \"endYear\": 2023\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Skills & Domains",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/candidate/skills",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skills\": [\"SKILL_ID_1\", \"SKILL_ID_2\"],\n  \"domains\": [\"DOMAIN_ID_1\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Social Links",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/candidate/social-links",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"linkedin\": \"https://linkedin.com/in/johndoe\",\n  \"github\": \"https://github.com/johndoe\",\n  \"portfolio\": \"https://johndoe.dev\",\n  \"leetcode\": \"https://leetcode.com/johndoe\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Public Profile (by slug)",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/candidate/public/john-doe-abc123"
+          }
+        },
+        {
+          "name": "Submit Capstone Project",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/candidate/capstone",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"E-Commerce Platform\",\n  \"description\": \"Built with Next.js, Node.js, MongoDB\",\n  \"repoUrl\": \"https://github.com/johndoe/ecom\",\n  \"liveUrl\": \"https://ecom-demo.vercel.app\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Scorecard",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/candidate/scorecard",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Get My Assessments",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/candidate/assessments",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Submit Assessment",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/candidate/assessments/:assessmentId/submit",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"questionIndex\": 0, \"selectedOption\": 2 },\n    { \"questionIndex\": 1, \"selectedOption\": 0 },\n    { \"questionIndex\": 2, \"selectedOption\": 1 }\n  ],\n  \"timeTakenMinutes\": 15\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Job Feed (Verified Only)",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/candidate/job-feed",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "My Applications",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/candidate/my-applications",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Withdraw Application",
+          "request": {
+            "method": "DELETE",
+            "url": "{{BASE_URL}}/candidate/applications/:applicationId",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "💼 Jobs (Public)",
+      "item": [
+        {
+          "name": "List All Jobs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{BASE_URL}}/jobs?page=1&limit=12",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "12" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "domain", "value": "", "disabled": true },
+                { "key": "workMode", "value": "remote", "disabled": true },
+                { "key": "jobType", "value": "full-time", "disabled": true },
+                { "key": "experienceLevel", "value": "mid", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Job by Slug",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/jobs/nodejs-developer-abc123"
+          }
+        },
+        {
+          "name": "Apply to Job",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/jobs/:jobId/apply",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"coverLetter\": \"I am excited about this opportunity...\",\n  \"resumeUrl\": \"https://drive.google.com/file/resume.pdf\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏢 HR",
+      "item": [
+        {
+          "name": "Get HR Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/hr/profile",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Update HR Profile",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/hr/profile",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyName\": \"TechCorp India\",\n  \"companyWebsite\": \"https://techcorp.in\",\n  \"companySize\": \"51-200\",\n  \"industry\": \"Software\",\n  \"designation\": \"Senior HR Manager\",\n  \"location\": \"Bangalore\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Post a Job",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/hr/jobs",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Senior Node.js Developer\",\n  \"description\": \"We are looking for an experienced Node.js developer to join our backend team.\",\n  \"requirements\": [\"3+ years Node.js\", \"MongoDB experience\", \"REST API design\"],\n  \"responsibilities\": [\"Build scalable APIs\", \"Code reviews\", \"Mentoring juniors\"],\n  \"domain\": \"DOMAIN_ID\",\n  \"requiredSkills\": [\"SKILL_ID_1\", \"SKILL_ID_2\"],\n  \"jobType\": \"full-time\",\n  \"workMode\": \"hybrid\",\n  \"experienceLevel\": \"senior\",\n  \"minExperience\": 3,\n  \"maxExperience\": 6,\n  \"location\": \"Bangalore / Remote\",\n  \"salaryMin\": 1200000,\n  \"salaryMax\": 2000000,\n  \"salaryCurrency\": \"INR\",\n  \"totalOpenings\": 2,\n  \"applicationDeadline\": \"2025-06-30T00:00:00Z\",\n  \"requiresVerification\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "My Jobs",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/hr/jobs",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Update Job",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/hr/jobs/:jobId",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"paused\",\n  \"totalOpenings\": 3\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Applications for Job",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/hr/jobs/:jobId/applications",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Update Application Status",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/hr/applications/:applicationId",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shortlisted\",\n  \"hrNotes\": \"Strong profile, schedule interview\",\n  \"rating\": 4,\n  \"interviewDate\": \"2025-05-20T10:00:00Z\",\n  \"interviewLink\": \"https://meet.google.com/abc-xyz\",\n  \"interviewType\": \"video\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎓 Mentor",
+      "item": [
+        {
+          "name": "List All Mentors (Public)",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/mentor"
+          }
+        },
+        {
+          "name": "Get Mentor Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/mentor/profile",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Update Mentor Profile",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/mentor/profile",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"headline\": \"Senior Engineer at Google | 8 YOE\",\n  \"bio\": \"Helping developers grow their careers\",\n  \"yearsOfExperience\": 8,\n  \"currentCompany\": \"Google\",\n  \"currentRole\": \"Senior Software Engineer\",\n  \"hourlyRate\": 2000,\n  \"monthlyRate\": 15000,\n  \"currency\": \"INR\",\n  \"isFreeFirstSession\": true,\n  \"availability\": [\n    { \"day\": \"Sat\", \"slots\": [{\"startTime\": \"10:00\", \"endTime\": \"14:00\"}] },\n    { \"day\": \"Sun\", \"slots\": [{\"startTime\": \"11:00\", \"endTime\": \"15:00\"}] }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Book Session",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/mentor/:mentorUserId/book",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionType\": \"hourly\",\n  \"scheduledAt\": \"2025-06-01T10:00:00Z\",\n  \"durationMinutes\": 60,\n  \"topic\": \"System Design Interview Prep\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Mentor Sessions",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/mentor/sessions",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Confirm Session (Mentor)",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/mentor/sessions/:sessionId",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\",\n  \"meetLink\": \"https://meet.google.com/xyz-abc-123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Rate Session (Candidate)",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/mentor/sessions/:sessionId/rate",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"feedback\": \"Amazing session, very helpful!\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛡️ Admin",
+      "item": [
+        {
+          "name": "Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/admin/dashboard",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "All Users",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/admin/users",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Pending Verifications (Candidates)",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/admin/pending/candidate",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Verify User",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/admin/verify/:userId",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"verify\",\n  \"note\": \"Profile reviewed and verified\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Reject User",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/admin/verify/:userId",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"reject\",\n  \"note\": \"Incomplete profile, please resubmit\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Domain",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/admin/domains",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Backend Development\",\n  \"description\": \"Server-side development domain\",\n  \"icon\": \"server\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get All Domains",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/admin/domains",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Create Skill",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/admin/skills",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Node.js\",\n  \"domain\": \"DOMAIN_ID_HERE\",\n  \"description\": \"JavaScript runtime for backend\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Assessment",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/admin/assessments",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Node.js Basics Assessment\",\n  \"description\": \"Test your Node.js fundamentals\",\n  \"domain\": \"DOMAIN_ID\",\n  \"skill\": \"SKILL_ID\",\n  \"level\": \"beginner\",\n  \"durationMinutes\": 30,\n  \"questions\": [\n    {\n      \"questionText\": \"What is the event loop in Node.js?\",\n      \"options\": [\"A thread pool\", \"A mechanism for handling async ops\", \"A database connector\", \"A module system\"],\n      \"correctAnswer\": 1,\n      \"explanation\": \"The event loop allows Node.js to perform non-blocking operations\",\n      \"marks\": 2\n    },\n    {\n      \"questionText\": \"Which module is used to create HTTP server?\",\n      \"options\": [\"fs\", \"path\", \"http\", \"os\"],\n      \"correctAnswer\": 2,\n      \"explanation\": \"The http module provides HTTP server and client functionality\",\n      \"marks\": 2\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Toggle User Active",
+          "request": {
+            "method": "PUT",
+            "url": "{{BASE_URL}}/admin/users/:userId/toggle-active",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Admin Post Job",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/admin/jobs",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Platform Engineer\",\n  \"description\": \"Internal platform engineering role\",\n  \"domain\": \"DOMAIN_ID\",\n  \"jobType\": \"full-time\",\n  \"workMode\": \"remote\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔍 Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:5000/health"
+          }
+        }
+      ]
+    }
+  ]
+}
