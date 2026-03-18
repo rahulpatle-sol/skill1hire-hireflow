@@ -3,12 +3,14 @@ const { Strategy: GoogleStrategy } = require("passport-google-oauth20");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const User = require("../models/User.model");
 
+const JWT_SECRET = process.env.JWT_SECRET || "fallback_test_secret_32_chars_min";
+
 // ── JWT Strategy ──────────────────────────────────
 passport.use(
   new JwtStrategy(
     {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: process.env.JWT_SECRET || "fallback_test_secret_32_chars_min",
+      secretOrKey: JWT_SECRET,
     },
     async (payload, done) => {
       try {
