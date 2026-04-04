@@ -67,18 +67,16 @@ const getJobBySlug = asyncHandler(async (req, res, next) => {
   res.json(new ApiResponse(200, { job }));
 });
 
-// @desc    Apply to a job (verified candidates only)
+// @desc    Apply to a job
 // @route   POST /api/v1/jobs/:id/apply
-// @access  Private (candidate, verified)
+// @access  Private (candidate)
 const applyToJob = asyncHandler(async (req, res, next) => {
   const job = await Job.findById(req.params.id);
   if (!job || job.status !== "active") return next(new ApiError(404, "Job not found or closed"));
 
-  // Check verification if required
-  if (job.requiresVerification && !req.user.isVerified) {
-    return next(
-      new ApiError(403, "You must be verified (blue tick) to apply for this job")
-    );
+  // Unverified candidate — cannot apply to ANY job
+  if (!req.user.isVerified) {
+    return next(new ApiError(403, "VERIFICATION_REQUIRED"));
   }
 
   // Check existing application
@@ -95,9 +93,7 @@ const applyToJob = asyncHandler(async (req, res, next) => {
     resumeUrl: req.body.resumeUrl || candidateProfile?.resumeUrl || "",
   });
 
-  // Increment application count
   await Job.findByIdAndUpdate(job._id, { $inc: { totalApplications: 1 } });
-
   res.status(201).json(new ApiResponse(201, { application }, "Application submitted successfully"));
 });
 
@@ -144,37 +140,72 @@ const withdrawApplication = asyncHandler(async (req, res, next) => {
   res.json(new ApiResponse(200, null, "Application withdrawn"));
 });
 
-// @desc    Get skill-based job feed for verified candidates
-// @route   GET /api/v1/jobs/feed
+// @desc    Smart skill-matched job feed for verified candidates
+// @route   GET /api/v1/candidate/job-feed
 // @access  Private (candidate, verified)
 const getJobFeed = asyncHandler(async (req, res, next) => {
-  const profile = await CandidateProfile.findOne({ user: req.user._id });
+  const profile = await CandidateProfile.findOne({ user: req.user._id })
+    .populate("skills", "_id name")
+    .populate("domains", "_id name");
+
   if (!profile) return next(new ApiError(404, "Profile not found"));
 
-  const { page = 1, limit = 12 } = req.query;
+  const { page = 1, limit = 12, search, workMode, jobType } = req.query;
   const skip = (page - 1) * limit;
 
-  const [jobs, total] = await Promise.all([
-    Job.find({
-      status: "active",
-      $or: [
-        { requiredSkills: { $in: profile.skills } },
-        { domain: { $in: profile.domains } },
-      ],
-    })
+  const candidateSkillIds = (profile.skills || []).map(s => s._id);
+  const candidateDomainIds = (profile.domains || []).map(d => d._id);
+
+  // Base filter — only active jobs
+  const baseFilter = { status: "active" };
+  if (search) baseFilter.$text = { $search: search };
+  if (workMode) baseFilter.workMode = workMode;
+  if (jobType) baseFilter.jobType = jobType;
+
+  // If candidate has skills/domains — smart match
+  // Otherwise show all active jobs
+  const hasProfile = candidateSkillIds.length > 0 || candidateDomainIds.length > 0;
+
+  const matchFilter = hasProfile
+    ? {
+        ...baseFilter,
+        $or: [
+          { requiredSkills: { $in: candidateSkillIds } },
+          { domain: { $in: candidateDomainIds } },
+        ],
+      }
+    : baseFilter;
+
+  const [rawJobs, total] = await Promise.all([
+    Job.find(matchFilter)
       .populate("domain", "name slug")
       .populate("requiredSkills", "name")
       .sort("-createdAt")
       .skip(skip)
       .limit(Number(limit)),
-    Job.countDocuments({
-      status: "active",
-      $or: [
-        { requiredSkills: { $in: profile.skills } },
-        { domain: { $in: profile.domains } },
-      ],
-    }),
+    Job.countDocuments(matchFilter),
   ]);
+
+  // Attach match score to each job
+  const jobs = rawJobs.map(job => {
+    const jobSkillIds = (job.requiredSkills || []).map(s => s._id.toString());
+    const jobDomainId = job.domain?._id?.toString();
+
+    const candSkillStrs = candidateSkillIds.map(id => id.toString());
+    const candDomainStrs = candidateDomainIds.map(id => id.toString());
+
+    const skillMatches = jobSkillIds.filter(id => candSkillStrs.includes(id)).length;
+    const domainMatch = jobDomainId && candDomainStrs.includes(jobDomainId) ? 1 : 0;
+
+    const matchScore = jobSkillIds.length > 0
+      ? Math.round(((skillMatches + domainMatch) / (jobSkillIds.length + 1)) * 100)
+      : domainMatch ? 100 : 70;
+
+    return { ...job.toObject(), matchScore, isSmartMatch: matchScore >= 60 };
+  });
+
+  // Sort by match score
+  jobs.sort((a, b) => b.matchScore - a.matchScore);
 
   res.json(new ApiResponse(200, { jobs, total, page: Number(page), pages: Math.ceil(total / limit) }));
 });

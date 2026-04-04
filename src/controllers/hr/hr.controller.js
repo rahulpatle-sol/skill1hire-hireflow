@@ -114,29 +114,81 @@ const updateJob = asyncHandler(async (req, res, next) => {
   res.json(new ApiResponse(200, { job }, "Job updated"));
 });
 
-// @desc    Get applications for a job
+// @desc    Get applications for a job (with freemium limit + skill matching)
 // @route   GET /api/v1/hr/jobs/:id/applications
 // @access  Private (hr)
 const getJobApplications = asyncHandler(async (req, res, next) => {
-  const job = await Job.findOne({ _id: req.params.id, postedBy: req.user._id });
+  const job = await Job.findOne({ _id: req.params.id, postedBy: req.user._id })
+    .populate("requiredSkills", "_id name")
+    .populate("domain", "_id name");
+
   if (!job) return next(new ApiError(404, "Job not found"));
 
-  const { status, page = 1, limit = 20 } = req.query;
+  // Get HR plan
+  const hrProfile = await HRProfile.findOne({ user: req.user._id });
+  const isPremium = hrProfile?.isPremium || false;
+
+  // Free tier: 10 candidates, Premium: 20 candidates
+  const FREE_LIMIT = 10;
+  const PREMIUM_LIMIT = 20;
+
+  const { status, page = 1 } = req.query;
   const filter = { job: job._id };
   if (status) filter.status = status;
 
-  const skip = (page - 1) * limit;
-  const [applications, total] = await Promise.all([
-    Application.find(filter)
-      .populate("candidate", "name email avatar isVerified")
-      .populate("candidateProfile", "headline skills overallScore verifiedBadge")
-      .sort("-appliedAt")
-      .skip(skip)
-      .limit(Number(limit)),
-    Application.countDocuments(filter),
-  ]);
+  // ── Smart Matching ───────────────────────────
+  // Pull ALL applications with candidate profiles
+  const allApplications = await Application.find(filter)
+    .populate("candidate", "name email avatar isVerified")
+    .populate({
+      path: "candidateProfile",
+      populate: [
+        { path: "skills", select: "_id name" },
+        { path: "domains", select: "_id name" },
+      ],
+      select: "headline skills domains overallScore profileCompleteness socialLinks capstoneProject",
+    })
+    .sort({ "candidateProfile.overallScore": -1, appliedAt: -1 });
 
-  res.json(new ApiResponse(200, { applications, total, page: Number(page), pages: Math.ceil(total / limit) }));
+  // Score each application by skill match
+  const jobSkillIds = (job.requiredSkills || []).map(s => s._id.toString());
+  const jobDomainId = job.domain?._id?.toString();
+
+  const scored = allApplications.map(app => {
+    const candSkillIds = (app.candidateProfile?.skills || []).map(s => s._id.toString());
+    const candDomainIds = (app.candidateProfile?.domains || []).map(d => d._id.toString());
+
+    const skillMatches = jobSkillIds.filter(id => candSkillIds.includes(id)).length;
+    const domainMatch = jobDomainId && candDomainIds.includes(jobDomainId) ? 1 : 0;
+
+    const matchScore = jobSkillIds.length > 0
+      ? Math.round(((skillMatches + domainMatch) / (jobSkillIds.length + 1)) * 100)
+      : domainMatch ? 100 : 50;
+
+    return { ...app.toObject(), matchScore };
+  });
+
+  // Sort by match score first
+  scored.sort((a, b) => b.matchScore - a.matchScore);
+
+  const total = scored.length;
+
+  // Freemium: free = 10, premium = 20
+  const visibleApplications = isPremium
+    ? scored.slice((page - 1) * PREMIUM_LIMIT, page * PREMIUM_LIMIT)
+    : scored.slice(0, FREE_LIMIT);
+
+  const lockedCount = isPremium ? 0 : Math.max(0, total - FREE_LIMIT);
+
+  res.json(new ApiResponse(200, {
+    applications: visibleApplications,
+    total,
+    lockedCount,
+    isPremium,
+    freeLimit: FREE_LIMIT,
+    page: Number(page),
+    pages: isPremium ? Math.ceil(total / 10) : 1,
+  }));
 });
 
 // @desc    Update application status
@@ -165,6 +217,19 @@ const updateApplicationStatus = asyncHandler(async (req, res, next) => {
   res.json(new ApiResponse(200, { application }, "Application updated"));
 });
 
+// @desc    Upgrade HR to premium (admin only)
+// @route   PUT /api/v1/hr/premium/:userId
+// @access  Private (admin)
+const upgradeHRToPremium = asyncHandler(async (req, res, next) => {
+  const profile = await HRProfile.findOneAndUpdate(
+    { user: req.params.userId },
+    { isPremium: true, premiumSince: new Date() },
+    { new: true }
+  );
+  if (!profile) return next(new ApiError(404, "HR profile not found"));
+  res.json(new ApiResponse(200, { profile }, "HR upgraded to premium"));
+});
+
 module.exports = {
   getHRProfile,
   updateHRProfile,
@@ -173,4 +238,5 @@ module.exports = {
   updateJob,
   getJobApplications,
   updateApplicationStatus,
+  upgradeHRToPremium,
 };

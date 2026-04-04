@@ -26,6 +26,10 @@ const hrProfileSchema = new mongoose.Schema(
     location: { type: String, default: "" },
     bio: { type: String, maxlength: 500, default: "" },
 
+    // Premium plan
+    isPremium: { type: Boolean, default: false },
+    premiumSince: { type: Date },
+
     // Verification by admin
     isVerified: { type: Boolean, default: false },
     verificationStatus: {

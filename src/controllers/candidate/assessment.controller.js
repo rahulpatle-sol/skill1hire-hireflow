@@ -4,29 +4,36 @@ const ApiError = require("../../utils/ApiError");
 const ApiResponse = require("../../utils/ApiResponse");
 const asyncHandler = require("../../utils/asyncHandler");
 
-// @desc    Get assessments for candidate's skills
+// @desc    Get assessments for candidate
 // @route   GET /api/v1/candidate/assessments
 // @access  Private (candidate)
 const getMyAssessments = asyncHandler(async (req, res, next) => {
   const profile = await CandidateProfile.findOne({ user: req.user._id });
   if (!profile) return next(new ApiError(404, "Profile not found"));
 
-  const assessments = await Assessment.find({
-    domain: { $in: profile.domains },
-    isActive: true,
-  })
+  // If candidate has domains → show domain-matched assessments
+  // If no domains yet → show ALL active assessments so they can still attempt
+  const filter = { isActive: true };
+  if (profile.domains && profile.domains.length > 0) {
+    filter.domain = { $in: profile.domains };
+  }
+
+  const assessments = await Assessment.find(filter)
     .populate("domain", "name")
     .populate("skill", "name")
-    .select("-questions.correctAnswer -questions.explanation");
+    .select("-questions.correctAnswer -questions.explanation")
+    .sort("-createdAt");
 
   // Get completed assessments
-  const completed = await AssessmentResult.find({ candidate: req.user._id }).select("assessment isPassed percentageScore");
-  const completedIds = completed.map((r) => r.assessment.toString());
+  const completed = await AssessmentResult.find({ candidate: req.user._id })
+    .select("assessment isPassed percentageScore attemptNumber");
+  const completedMap = {};
+  completed.forEach(r => { completedMap[r.assessment.toString()] = r; });
 
   const enriched = assessments.map((a) => ({
     ...a.toObject(),
-    isCompleted: completedIds.includes(a._id.toString()),
-    myResult: completed.find((r) => r.assessment.toString() === a._id.toString()) || null,
+    isCompleted: !!completedMap[a._id.toString()],
+    myResult: completedMap[a._id.toString()] || null,
   }));
 
   res.json(new ApiResponse(200, { assessments: enriched }));

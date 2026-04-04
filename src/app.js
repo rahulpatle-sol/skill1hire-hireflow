@@ -56,6 +56,7 @@ app.use("/api/v1/hr",        require("./routes/v1/hr.routes"));
 app.use("/api/v1/mentor",    require("./routes/v1/mentor.routes"));
 app.use("/api/v1/admin",     require("./routes/v1/admin.routes"));
 app.use("/api/v1/jobs",      require("./routes/v1/job.routes"));
+app.use("/api/v1/meta",      require("./routes/v1/meta.routes")); // public — no auth needed
 
 // ── 404 ───────────────────────────────────────────
 app.use((req, res) => {

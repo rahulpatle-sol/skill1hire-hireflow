@@ -42,11 +42,16 @@ const getDashboard = asyncHandler(async (req, res) => {
 // ── Verify / Reject Users ─────────────────────────
 // @route PUT /api/v1/admin/verify/:userId
 const verifyUser = asyncHandler(async (req, res, next) => {
-  const { action, note } = req.body; // action: "verify" | "reject"
+  // Support both formats:
+  // { action: "verify" | "reject" }  OR  { isVerified: true/false }
+  const { action, note, isVerified: isVerifiedParam, rejectionReason } = req.body;
+
   const user = await User.findById(req.params.userId);
   if (!user) return next(new ApiError(404, "User not found"));
 
-  const isVerified = action === "verify";
+  const isVerified = action ? action === "verify" : Boolean(isVerifiedParam);
+  const noteText = note || rejectionReason || "";
+
   user.isVerified = isVerified;
   user.verifiedAt = isVerified ? new Date() : undefined;
   user.verifiedBy = req.user._id;
@@ -57,21 +62,21 @@ const verifyUser = asyncHandler(async (req, res, next) => {
   if (user.role === "candidate") {
     await CandidateProfile.findOneAndUpdate(
       { user: user._id },
-      { isVerified, verifiedBadge: isVerified, verificationStatus, verificationNote: note || "" }
+      { isVerified, verifiedBadge: isVerified, verificationStatus, verificationNote: noteText }
     );
   } else if (user.role === "hr") {
     await HRProfile.findOneAndUpdate(
       { user: user._id },
-      { isVerified, verificationStatus, verificationNote: note || "", verifiedAt: isVerified ? new Date() : undefined }
+      { isVerified, verificationStatus, verificationNote: noteText, verifiedAt: isVerified ? new Date() : undefined }
     );
   } else if (user.role === "mentor") {
     await MentorProfile.findOneAndUpdate(
       { user: user._id },
-      { isVerified, verificationStatus, verificationNote: note || "", verifiedAt: isVerified ? new Date() : undefined }
+      { isVerified, verificationStatus, verificationNote: noteText, verifiedAt: isVerified ? new Date() : undefined }
     );
   }
 
-  res.json(new ApiResponse(200, null, `User ${isVerified ? "verified" : "rejected"} successfully`));
+  res.json(new ApiResponse(200, null, `User ${isVerified ? "verified ✅" : "rejected"} successfully`));
 });
 
 // ── List Pending Verifications ─────────────────────
@@ -81,11 +86,36 @@ const getPendingVerifications = asyncHandler(async (req, res, next) => {
   const allowedRoles = ["candidate", "hr", "mentor"];
   if (!allowedRoles.includes(role)) return next(new ApiError(400, "Invalid role"));
 
+  // Get users who are not verified
   const users = await User.find({ role, isVerified: false, isActive: true })
-    .select("name email avatar createdAt")
+    .select("_id name email avatar createdAt")
     .sort("-createdAt");
 
-  res.json(new ApiResponse(200, { users, total: users.length }));
+  const userIds = users.map(u => u._id);
+
+  // Fetch profiles based on role
+  let pending = [];
+
+  if (role === "candidate") {
+    const profiles = await CandidateProfile.find({ user: { $in: userIds } })
+      .populate("user", "name email avatar _id")
+      .populate("skills", "name")
+      .populate("domains", "name")
+      .select("user headline bio overallScore totalAssessmentsPassed capstoneProject socialLinks profileCompleteness verificationStatus");
+    pending = profiles;
+  } else if (role === "hr") {
+    const profiles = await HRProfile.find({ user: { $in: userIds } })
+      .populate("user", "name email avatar _id")
+      .select("user companyName companyWebsite designation bio verificationStatus");
+    pending = profiles;
+  } else if (role === "mentor") {
+    const profiles = await MentorProfile.find({ user: { $in: userIds } })
+      .populate("user", "name email avatar _id")
+      .select("user bio currentRole currentCompany yearsOfExperience expertise avgRating verificationStatus");
+    pending = profiles;
+  }
+
+  res.json(new ApiResponse(200, { pending, total: pending.length }));
 });
 
 // ── Domains ───────────────────────────────────────
