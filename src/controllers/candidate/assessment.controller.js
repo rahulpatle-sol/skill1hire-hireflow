@@ -1,130 +1,144 @@
 const { Assessment, AssessmentResult } = require("../../models/Assessment.model");
 const CandidateProfile = require("../../models/CandidateProfile.model");
-const ApiError = require("../../utils/ApiError");
+const ApiError  = require("../../utils/ApiError");
 const ApiResponse = require("../../utils/ApiResponse");
 const asyncHandler = require("../../utils/asyncHandler");
 
-// @desc    Get assessments for candidate
-// @route   GET /api/v1/candidate/assessments
-// @access  Private (candidate)
+// ─────────────────────────────────────────────────
+// @desc  Get assessments for this candidate
+//        • If admin has assigned specific assessments → show ONLY those
+//        • Else if candidate has domains → show domain-matched
+//        • Else → show all active (fallback so they're never stuck)
+// @route GET /api/v1/candidate/assessments
+// @access Private (candidate)
+// ─────────────────────────────────────────────────
 const getMyAssessments = asyncHandler(async (req, res, next) => {
   const profile = await CandidateProfile.findOne({ user: req.user._id });
   if (!profile) return next(new ApiError(404, "Profile not found"));
 
-  // If candidate has domains → show domain-matched assessments
-  // If no domains yet → show ALL active assessments so they can still attempt
-  const filter = { isActive: true };
-  if (profile.domains && profile.domains.length > 0) {
+  let filter = { isActive: true };
+  let isAssigned = false;
+
+  // 1️⃣  Admin-assigned assessments take priority
+  if (profile.assignedAssessments && profile.assignedAssessments.length > 0) {
+    filter._id = { $in: profile.assignedAssessments };
+    isAssigned = true;
+  }
+  // 2️⃣  Domain-matched (candidate has set domains on profile)
+  else if (profile.domains && profile.domains.length > 0) {
     filter.domain = { $in: profile.domains };
   }
+  // 3️⃣  Fallback — all active (no profile set up yet)
 
   const assessments = await Assessment.find(filter)
     .populate("domain", "name")
-    .populate("skill", "name")
+    .populate("skill",  "name")
     .select("-questions.correctAnswer -questions.explanation")
     .sort("-createdAt");
 
-  // Get completed assessments
-  const completed = await AssessmentResult.find({ candidate: req.user._id })
-    .select("assessment isPassed percentageScore attemptNumber");
-  const completedMap = {};
-  completed.forEach(r => { completedMap[r.assessment.toString()] = r; });
+  // Attach completed results
+  const results = await AssessmentResult.find({ candidate: req.user._id })
+    .select("assessment isPassed percentageScore attemptNumber totalMarksObtained totalMarks");
 
-  const enriched = assessments.map((a) => ({
+  const resultMap = {};
+  results.forEach(r => { resultMap[r.assessment.toString()] = r; });
+
+  const enriched = assessments.map(a => ({
     ...a.toObject(),
-    isCompleted: !!completedMap[a._id.toString()],
-    myResult: completedMap[a._id.toString()] || null,
+    isCompleted: !!resultMap[a._id.toString()],
+    myResult:    resultMap[a._id.toString()] || null,
+    isAssigned,
   }));
 
   res.json(new ApiResponse(200, { assessments: enriched }));
 });
 
-// @desc    Get single assessment to attempt
-// @route   GET /api/v1/candidate/assessments/:id
-// @access  Private (candidate)
+// ─────────────────────────────────────────────────
+// @desc  Get a single assessment to attempt
+// @route GET /api/v1/candidate/assessments/:id
+// @access Private (candidate)
+// ─────────────────────────────────────────────────
 const getAssessmentById = asyncHandler(async (req, res, next) => {
   const assessment = await Assessment.findById(req.params.id)
     .populate("domain", "name")
-    .populate("skill", "name")
-    .select("-questions.correctAnswer -questions.explanation");
+    .populate("skill",  "name");
 
-  if (!assessment || !assessment.isActive) {
+  if (!assessment || !assessment.isActive)
     return next(new ApiError(404, "Assessment not found"));
-  }
 
-  res.json(new ApiResponse(200, { assessment }));
+  // Hide correct answers while taking
+  const questions = assessment.questions.map(q => ({
+    questionText: q.questionText,
+    options:      q.options,
+    marks:        q.marks,
+    _id:          q._id,
+  }));
+
+  res.json(new ApiResponse(200, {
+    assessment: {
+      ...assessment.toObject(),
+      questions,
+    },
+  }));
 });
 
-// @desc    Submit assessment answers
-// @route   POST /api/v1/candidate/assessments/:id/submit
-// @access  Private (candidate)
+// ─────────────────────────────────────────────────
+// @desc  Submit an assessment
+// @route POST /api/v1/candidate/assessments/:id/submit
+// @access Private (candidate)
+// ─────────────────────────────────────────────────
 const submitAssessment = asyncHandler(async (req, res, next) => {
-  const { answers, timeTakenMinutes } = req.body;
-
   const assessment = await Assessment.findById(req.params.id);
   if (!assessment) return next(new ApiError(404, "Assessment not found"));
 
-  // Check if already attempted today
-  const existingResult = await AssessmentResult.findOne({
-    candidate: req.user._id,
-    assessment: assessment._id,
-  }).sort("-createdAt");
+  const { answers = [], timeTakenMinutes = 0 } = req.body;
 
-  const attemptNumber = existingResult ? existingResult.attemptNumber + 1 : 1;
-
-  // Grade answers
-  let totalMarksObtained = 0;
-  const gradedAnswers = answers.map((ans) => {
-    const question = assessment.questions[ans.questionIndex];
-    const isCorrect = question && question.correctAnswer === ans.selectedOption;
-    const marksObtained = isCorrect ? question.marks : 0;
-    totalMarksObtained += marksObtained;
-    return { ...ans, isCorrect, marksObtained };
+  // Auto-grade
+  let totalMarks = 0;
+  let obtained   = 0;
+  assessment.questions.forEach((q, qi) => {
+    totalMarks += q.marks || 1;
+    const submitted = answers.find(a => a.questionIndex === qi);
+    if (submitted && submitted.selectedOption === q.correctAnswer) {
+      obtained += q.marks || 1;
+    }
   });
 
-  const percentageScore = Math.round((totalMarksObtained / assessment.totalMarks) * 100);
-  const isPassed = totalMarksObtained >= assessment.passingMarks;
+  const pct      = Math.round((obtained / totalMarks) * 100);
+  const isPassed = pct >= assessment.passingScore;
+
+  // Count previous attempts
+  const prevCount = await AssessmentResult.countDocuments({
+    candidate:  req.user._id,
+    assessment: assessment._id,
+  });
 
   const result = await AssessmentResult.create({
-    candidate: req.user._id,
-    assessment: assessment._id,
-    answers: gradedAnswers,
-    totalMarksObtained,
-    totalMarks: assessment.totalMarks,
-    percentageScore,
+    candidate:          req.user._id,
+    assessment:         assessment._id,
+    answers:            answers.map(a => ({ questionIndex: a.questionIndex, selectedOption: a.selectedOption })),
+    totalMarksObtained: obtained,
+    totalMarks,
+    percentageScore:    pct,
     isPassed,
     timeTakenMinutes,
-    attemptNumber,
+    attemptNumber:      prevCount + 1,
   });
 
-  // Update candidate's overall score
+  // Update candidate overall score if passed
   if (isPassed) {
-    const allResults = await AssessmentResult.find({
+    const passedCount = await AssessmentResult.countDocuments({
       candidate: req.user._id,
-      isPassed: true,
+      isPassed:  true,
     });
-    const avgScore = allResults.reduce((acc, r) => acc + r.percentageScore, 0) / allResults.length;
+    const newScore = Math.min(100, 50 + passedCount * 10);
     await CandidateProfile.findOneAndUpdate(
       { user: req.user._id },
-      { overallScore: Math.round(avgScore) }
+      { overallScore: newScore }
     );
   }
 
-  res.json(
-    new ApiResponse(
-      200,
-      {
-        result: {
-          totalMarksObtained,
-          totalMarks: assessment.totalMarks,
-          percentageScore,
-          isPassed,
-          attemptNumber,
-        },
-      },
-      isPassed ? "🎉 Assessment passed!" : "Assessment submitted. Keep practicing!"
-    )
-  );
+  res.json(new ApiResponse(200, { result }));
 });
 
 module.exports = { getMyAssessments, getAssessmentById, submitAssessment };

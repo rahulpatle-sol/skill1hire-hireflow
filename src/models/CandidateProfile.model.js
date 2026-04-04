@@ -2,34 +2,34 @@ const mongoose = require("mongoose");
 
 const socialLinksSchema = new mongoose.Schema(
   {
-    linkedin: { type: String, default: "" },
-    github: { type: String, default: "" },
+    linkedin:  { type: String, default: "" },
+    github:    { type: String, default: "" },
     portfolio: { type: String, default: "" },
-    twitter: { type: String, default: "" },
-    leetcode: { type: String, default: "" },
+    twitter:   { type: String, default: "" },
+    leetcode:  { type: String, default: "" },
   },
   { _id: false }
 );
 
 const educationSchema = new mongoose.Schema(
   {
-    institution: { type: String, required: true },
-    degree: { type: String, required: true },
+    institution:  { type: String, required: true },
+    degree:       { type: String, required: true },
     fieldOfStudy: { type: String },
-    startYear: { type: Number },
-    endYear: { type: Number },
-    grade: { type: String },
+    startYear:    { type: Number },
+    endYear:      { type: Number },
+    grade:        { type: String },
   },
   { _id: false }
 );
 
 const experienceSchema = new mongoose.Schema(
   {
-    company: { type: String, required: true },
-    role: { type: String, required: true },
-    startDate: { type: Date },
-    endDate: { type: Date },
-    isCurrent: { type: Boolean, default: false },
+    company:     { type: String, required: true },
+    role:        { type: String, required: true },
+    startDate:   { type: Date },
+    endDate:     { type: Date },
+    isCurrent:   { type: Boolean, default: false },
     description: { type: String },
   },
   { _id: false }
@@ -43,27 +43,33 @@ const candidateProfileSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    // Public profile slug — e.g. /profile/john-doe-xyz123
-    publicSlug: { type: String, unique: true, sparse: true },
-    headline: { type: String, maxlength: 200, default: "" },
-    bio: { type: String, maxlength: 1000, default: "" },
-    location: { type: String, default: "" },
-    phone: { type: String, default: "" },
 
-    // Domains selected by candidate (multi-select)
+    // LinkedIn-style public URL: /candidate/john-doe-abc123
+    publicSlug: { type: String, unique: true, sparse: true },
+
+    headline: { type: String, maxlength: 200, default: "" },
+    bio:      { type: String, maxlength: 1000, default: "" },
+    location: { type: String, default: "" },
+    phone:    { type: String, default: "" },
+
+    // ── Skills & Domains ─────────────────────────
     domains: [{ type: mongoose.Schema.Types.ObjectId, ref: "Domain" }],
-    // Skills selected by candidate (multi-select)
-    skills: [{ type: mongoose.Schema.Types.ObjectId, ref: "Skill" }],
+    skills:  [{ type: mongoose.Schema.Types.ObjectId, ref: "Skill" }],
 
     socialLinks: { type: socialLinksSchema, default: () => ({}) },
-    education: [educationSchema],
-    experience: [experienceSchema],
+    education:   [educationSchema],
+    experience:  [experienceSchema],
 
-    resumeUrl: { type: String, default: "" },
-    avatarUrl: { type: String, default: "" },
+    // ── File Uploads ─────────────────────────────
+    resumeUrl: { type: String, default: "" },   // PDF resume URL
+    avatarUrl: { type: String, default: "" },   // Profile picture URL
 
-    // Verification & Badge
-    isVerified: { type: Boolean, default: false },
+    // ── Admin-assigned assessments ───────────────
+    // Admin can pin specific assessments to this candidate
+    assignedAssessments: [{ type: mongoose.Schema.Types.ObjectId, ref: "Assessment" }],
+
+    // ── Verification ─────────────────────────────
+    isVerified:    { type: Boolean, default: false },
     verifiedBadge: { type: Boolean, default: false },
     verificationStatus: {
       type: String,
@@ -72,12 +78,12 @@ const candidateProfileSchema = new mongoose.Schema(
     },
     verificationNote: { type: String, default: "" },
 
-    // Capstone project
+    // ── Capstone ──────────────────────────────────
     capstoneProject: {
-      title: { type: String },
+      title:       { type: String },
       description: { type: String },
-      repoUrl: { type: String },
-      liveUrl: { type: String },
+      repoUrl:     { type: String },
+      liveUrl:     { type: String },
       submittedAt: { type: Date },
       status: {
         type: String,
@@ -86,16 +92,18 @@ const candidateProfileSchema = new mongoose.Schema(
       },
     },
 
-    // Overall score from assessments
-    overallScore: { type: Number, default: 0, min: 0, max: 100 },
-    profileCompleteness: { type: Number, default: 0, min: 0, max: 100 },
+    // ── Scores ────────────────────────────────────
+    overallScore:       { type: Number, default: 0, min: 0, max: 100 },
+    assessmentScore:    { type: Number, default: 0, min: 0, max: 100 },
+    profileCompleteness:{ type: Number, default: 0, min: 0, max: 100 },
+    totalAssessmentsPassed: { type: Number, default: 0 },
+
     isProfilePublic: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
 
 // ── Indexes ───────────────────────────────────────
-// user is already indexed via unique:true, publicSlug via unique:true sparse
 candidateProfileSchema.index({ isVerified: 1 });
 candidateProfileSchema.index({ skills: 1 });
 candidateProfileSchema.index({ domains: 1 });

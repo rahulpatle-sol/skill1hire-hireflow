@@ -1,38 +1,289 @@
-const router = require("express").Router();
-const { protect, authorizeRoles } = require("../../middleware/auth.middleware");
-const {
-  getDashboard, verifyUser, getPendingVerifications,
-  createDomain, getDomains, updateDomain,
-  createSkill, getSkills,
-  createAssessment, getAssessments,
-  getAllUsers, toggleUserActive, adminPostJob,
-} = require("../../controllers/admin/admin.controller");
+const User = require("../../models/User.model");
+const CandidateProfile = require("../../models/CandidateProfile.model");
+const HRProfile = require("../../models/HRProfile.model");
+const MentorProfile = require("../../models/MentorProfile.model");
+const { Domain, Skill } = require("../../models/Domain.model");
+const { Assessment } = require("../../models/Assessment.model");
+const Job = require("../../models/Job.model");
+const ApiError = require("../../utils/ApiError");
+const ApiResponse = require("../../utils/ApiResponse");
+const asyncHandler = require("../../utils/asyncHandler");
+const { createSlug } = require("../../utils/slugify");
 
-router.use(protect, authorizeRoles("admin"));
+// ── Dashboard Stats ───────────────────────────────
+// @route GET /api/v1/admin/dashboard
+const getDashboard = asyncHandler(async (req, res) => {
+  const [
+    totalCandidates, totalHRs, totalMentors,
+    verifiedCandidates, pendingCandidates,
+    totalJobs, activeJobs, totalDomains,
+  ] = await Promise.all([
+    User.countDocuments({ role: "candidate" }),
+    User.countDocuments({ role: "hr" }),
+    User.countDocuments({ role: "mentor" }),
+    User.countDocuments({ role: "candidate", isVerified: true }),
+    CandidateProfile.countDocuments({ verificationStatus: "pending" }),
+    Job.countDocuments(),
+    Job.countDocuments({ status: "active" }),
+    Domain.countDocuments({ isActive: true }),
+  ]);
 
-// Dashboard
-router.get("/dashboard", getDashboard);
+  res.json(
+    new ApiResponse(200, {
+      stats: {
+        totalCandidates, totalHRs, totalMentors,
+        verifiedCandidates, pendingCandidates,
+        totalJobs, activeJobs, totalDomains,
+      },
+    })
+  );
+});
 
-// Users
-router.get("/users", getAllUsers);
-router.put("/users/:id/toggle-active", toggleUserActive);
-router.put("/verify/:userId", verifyUser);
-router.get("/pending/:role", getPendingVerifications);
+// ── Verify / Reject Users ─────────────────────────
+// @route PUT /api/v1/admin/verify/:userId
+const verifyUser = asyncHandler(async (req, res, next) => {
+  // Support both formats:
+  // { action: "verify" | "reject" }  OR  { isVerified: true/false }
+  const { action, note, isVerified: isVerifiedParam, rejectionReason } = req.body;
 
-// Domains
-router.get("/domains", getDomains);
-router.post("/domains", createDomain);
-router.put("/domains/:id", updateDomain);
+  const user = await User.findById(req.params.userId);
+  if (!user) return next(new ApiError(404, "User not found"));
 
-// Skills
-router.get("/skills", getSkills);
-router.post("/skills", createSkill);
+  const isVerified = action ? action === "verify" : Boolean(isVerifiedParam);
+  const noteText = note || rejectionReason || "";
 
-// Assessments
-router.get("/assessments", getAssessments);
-router.post("/assessments", createAssessment);
+  user.isVerified = isVerified;
+  user.verifiedAt = isVerified ? new Date() : undefined;
+  user.verifiedBy = req.user._id;
+  await user.save({ validateBeforeSave: false });
 
-// Jobs
-router.post("/jobs", adminPostJob);
+  const verificationStatus = isVerified ? "verified" : "rejected";
 
-module.exports = router;
+  if (user.role === "candidate") {
+    await CandidateProfile.findOneAndUpdate(
+      { user: user._id },
+      { isVerified, verifiedBadge: isVerified, verificationStatus, verificationNote: noteText }
+    );
+  } else if (user.role === "hr") {
+    await HRProfile.findOneAndUpdate(
+      { user: user._id },
+      { isVerified, verificationStatus, verificationNote: noteText, verifiedAt: isVerified ? new Date() : undefined }
+    );
+  } else if (user.role === "mentor") {
+    await MentorProfile.findOneAndUpdate(
+      { user: user._id },
+      { isVerified, verificationStatus, verificationNote: noteText, verifiedAt: isVerified ? new Date() : undefined }
+    );
+  }
+
+  res.json(new ApiResponse(200, null, `User ${isVerified ? "verified ✅" : "rejected"} successfully`));
+});
+
+// ── List Pending Verifications ─────────────────────
+// @route GET /api/v1/admin/pending/:role
+const getPendingVerifications = asyncHandler(async (req, res, next) => {
+  const { role } = req.params;
+  const allowedRoles = ["candidate", "hr", "mentor"];
+  if (!allowedRoles.includes(role)) return next(new ApiError(400, "Invalid role"));
+
+  // Get users who are not verified
+  const users = await User.find({ role, isVerified: false, isActive: true })
+    .select("_id name email avatar createdAt")
+    .sort("-createdAt");
+
+  const userIds = users.map(u => u._id);
+
+  // Fetch profiles based on role
+  let pending = [];
+
+  if (role === "candidate") {
+    const profiles = await CandidateProfile.find({ user: { $in: userIds } })
+      .populate("user", "name email avatar _id")
+      .populate("skills", "name")
+      .populate("domains", "name")
+      .select("user headline bio overallScore totalAssessmentsPassed capstoneProject socialLinks profileCompleteness verificationStatus");
+    pending = profiles;
+  } else if (role === "hr") {
+    const profiles = await HRProfile.find({ user: { $in: userIds } })
+      .populate("user", "name email avatar _id")
+      .select("user companyName companyWebsite designation bio verificationStatus");
+    pending = profiles;
+  } else if (role === "mentor") {
+    const profiles = await MentorProfile.find({ user: { $in: userIds } })
+      .populate("user", "name email avatar _id")
+      .select("user bio currentRole currentCompany yearsOfExperience expertise avgRating verificationStatus");
+    pending = profiles;
+  }
+
+  res.json(new ApiResponse(200, { pending, total: pending.length }));
+});
+
+// ── Domains ───────────────────────────────────────
+// @route POST /api/v1/admin/domains
+const createDomain = asyncHandler(async (req, res, next) => {
+  const { name, description, icon } = req.body;
+  const slug = createSlug(name);
+
+  const domain = await Domain.create({ name, slug, description, icon, createdBy: req.user._id });
+  res.status(201).json(new ApiResponse(201, { domain }, "Domain created"));
+});
+
+// @route GET /api/v1/admin/domains
+const getDomains = asyncHandler(async (req, res) => {
+  const domains = await Domain.find().sort("name");
+  res.json(new ApiResponse(200, { domains }));
+});
+
+// @route PUT /api/v1/admin/domains/:id
+const updateDomain = asyncHandler(async (req, res, next) => {
+  const domain = await Domain.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  if (!domain) return next(new ApiError(404, "Domain not found"));
+  res.json(new ApiResponse(200, { domain }, "Domain updated"));
+});
+
+// ── Skills ────────────────────────────────────────
+// @route POST /api/v1/admin/skills
+const createSkill = asyncHandler(async (req, res, next) => {
+  const { name, domain, description } = req.body;
+  const slug = createSlug(name);
+  const skill = await Skill.create({ name, slug, domain, description, createdBy: req.user._id });
+  res.status(201).json(new ApiResponse(201, { skill }, "Skill created"));
+});
+
+// @route GET /api/v1/admin/skills
+const getSkills = asyncHandler(async (req, res) => {
+  const { domain } = req.query;
+  const filter = {};
+  if (domain) filter.domain = domain;
+  const skills = await Skill.find(filter).populate("domain", "name").sort("name");
+  res.json(new ApiResponse(200, { skills }));
+});
+
+// ── Assessments ───────────────────────────────────
+// @route POST /api/v1/admin/assessments
+const createAssessment = asyncHandler(async (req, res) => {
+  const assessment = await Assessment.create({ ...req.body, createdBy: req.user._id });
+
+  // Auto-calculate total marks
+  assessment.totalMarks = assessment.questions.reduce((sum, q) => sum + q.marks, 0);
+  assessment.passingMarks = Math.ceil(assessment.totalMarks * 0.6); // 60% pass
+  await assessment.save();
+
+  res.status(201).json(new ApiResponse(201, { assessment }, "Assessment created"));
+});
+
+// @route GET /api/v1/admin/assessments
+const getAssessments = asyncHandler(async (req, res) => {
+  const assessments = await Assessment.find()
+    .populate("domain", "name")
+    .populate("skill", "name")
+    .sort("-createdAt");
+  res.json(new ApiResponse(200, { assessments }));
+});
+
+// ── All Users ─────────────────────────────────────
+// @route GET /api/v1/admin/users
+const getAllUsers = asyncHandler(async (req, res) => {
+  const { role, isVerified, page = 1, limit = 20 } = req.query;
+  const filter = {};
+  if (role) filter.role = role;
+  if (isVerified !== undefined) filter.isVerified = isVerified === "true";
+
+  const skip = (page - 1) * limit;
+  const [users, total] = await Promise.all([
+    User.find(filter).sort("-createdAt").skip(skip).limit(Number(limit)),
+    User.countDocuments(filter),
+  ]);
+
+  res.json(new ApiResponse(200, { users, total, page: Number(page), pages: Math.ceil(total / limit) }));
+});
+
+// ── Deactivate User ───────────────────────────────
+// @route PUT /api/v1/admin/users/:id/toggle-active
+const toggleUserActive = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+  if (!user) return next(new ApiError(404, "User not found"));
+  if (user.role === "admin") return next(new ApiError(403, "Cannot deactivate admin"));
+
+  user.isActive = !user.isActive;
+  await user.save({ validateBeforeSave: false });
+
+  res.json(new ApiResponse(200, null, `User ${user.isActive ? "activated" : "deactivated"}`));
+});
+
+// ── Admin post job ────────────────────────────────
+// @route POST /api/v1/admin/jobs
+const adminPostJob = asyncHandler(async (req, res) => {
+  const { createUniqueSlug } = require("../../utils/slugify");
+  const slug = createUniqueSlug(req.body.title);
+  const job = await Job.create({ ...req.body, slug, postedBy: req.user._id });
+  res.status(201).json(new ApiResponse(201, { job }, "Job posted by admin"));
+});
+
+
+// ── Assign Assessment to Candidate ───────────────
+// @route PUT /api/v1/admin/assign-assessment/:candidateId
+// @access Private (admin)
+const assignAssessment = asyncHandler(async (req, res, next) => {
+  const { assessmentIds } = req.body; // array of assessment _ids
+  if (!Array.isArray(assessmentIds))
+    return next(new ApiError(400, "assessmentIds must be an array"));
+
+  const profile = await CandidateProfile.findOneAndUpdate(
+    { user: req.params.candidateId },
+    { assignedAssessments: assessmentIds },
+    { new: true }
+  ).populate("assignedAssessments", "title domain level");
+
+  if (!profile) return next(new ApiError(404, "Candidate profile not found"));
+  res.json(new ApiResponse(200, { profile }, "Assessments assigned successfully"));
+});
+
+// ── Remove Assigned Assessments ───────────────────
+// @route DELETE /api/v1/admin/assign-assessment/:candidateId
+// @access Private (admin)
+const removeAssignedAssessments = asyncHandler(async (req, res, next) => {
+  const profile = await CandidateProfile.findOneAndUpdate(
+    { user: req.params.candidateId },
+    { assignedAssessments: [] },
+    { new: true }
+  );
+  if (!profile) return next(new ApiError(404, "Candidate profile not found"));
+  res.json(new ApiResponse(200, { profile }, "Assigned assessments removed"));
+});
+
+// ── Upgrade HR Plan ───────────────────────────────
+// @route PUT /api/v1/admin/hr-plan/:userId
+// @access Private (admin)
+const upgradeHRPlan = asyncHandler(async (req, res, next) => {
+  const { plan } = req.body;
+  if (!["free","pro","enterprise"].includes(plan))
+    return next(new ApiError(400, "Invalid plan: use free | pro | enterprise"));
+
+  const profile = await HRProfile.findOneAndUpdate(
+    { user: req.params.userId },
+    { plan, planSince: new Date(), isPremium: plan !== "free" },
+    { new: true }
+  );
+  if (!profile) return next(new ApiError(404, "HR profile not found"));
+  res.json(new ApiResponse(200, { profile }, `HR upgraded to ${plan}`));
+});
+
+module.exports = {
+  getDashboard,
+  verifyUser,
+  getPendingVerifications,
+  createDomain,
+  getDomains,
+  updateDomain,
+  createSkill,
+  getSkills,
+  createAssessment,
+  getAssessments,
+  getAllUsers,
+  toggleUserActive,
+  adminPostJob,
+  assignAssessment,
+  removeAssignedAssessments,
+  upgradeHRPlan,
+};

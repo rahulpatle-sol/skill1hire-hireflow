@@ -1,242 +1,174 @@
-const HRProfile = require("../../models/HRProfile.model");
-const Job = require("../../models/Job.model");
+const HRProfile   = require("../../models/HRProfile.model");
+const Job         = require("../../models/Job.model");
 const Application = require("../../models/Application.model");
-const ApiError = require("../../utils/ApiError");
+const ApiError    = require("../../utils/ApiError");
 const ApiResponse = require("../../utils/ApiResponse");
 const asyncHandler = require("../../utils/asyncHandler");
 const { createUniqueSlug } = require("../../utils/slugify");
 
-// @desc    Get HR profile
-// @route   GET /api/v1/hr/profile
-// @access  Private (hr)
+const PLAN_LIMITS = { free: 10, pro: 25, enterprise: Infinity };
+
 const getHRProfile = asyncHandler(async (req, res, next) => {
   const profile = await HRProfile.findOne({ user: req.user._id }).populate("user", "name email avatar");
   if (!profile) return next(new ApiError(404, "HR profile not found"));
   res.json(new ApiResponse(200, { profile }));
 });
 
-// @desc    Update HR profile
-// @route   PUT /api/v1/hr/profile
-// @access  Private (hr)
 const updateHRProfile = asyncHandler(async (req, res, next) => {
-  const fields = ["companyName", "companyWebsite", "companyLogo", "companySize", "industry", "designation", "phone", "location", "bio"];
+  const allowed = ["companyName","companyWebsite","companyLogo","companySize","industry","designation","phone","location","bio"];
   const updates = {};
-  fields.forEach((f) => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
-
+  allowed.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
   const profile = await HRProfile.findOneAndUpdate({ user: req.user._id }, updates, { new: true, runValidators: true });
   if (!profile) return next(new ApiError(404, "HR profile not found"));
   res.json(new ApiResponse(200, { profile }, "Profile updated"));
 });
 
-// @desc    Post a new job
-// @route   POST /api/v1/hr/jobs
-// @access  Private (hr, verified)
 const postJob = asyncHandler(async (req, res, next) => {
-  const {
-    title, description, requirements, responsibilities,
-    requiredSkills, preferredSkills, domain, jobType, workMode,
-    experienceLevel, minExperience, maxExperience, location,
-    salaryMin, salaryMax, salaryCurrency, isNegotiable, isSalaryHidden,
-    applicationDeadline, totalOpenings, requiresVerification,
-  } = req.body;
-
   const hrProfile = await HRProfile.findOne({ user: req.user._id });
   if (!hrProfile) return next(new ApiError(404, "HR profile not found"));
 
-  const slug = createUniqueSlug(title);
-
+  const slug = createUniqueSlug(req.body.title);
   const job = await Job.create({
-    title,
+    ...req.body,
     slug,
-    description,
-    requirements,
-    responsibilities,
-    requiredSkills,
-    preferredSkills,
-    domain,
-    jobType,
-    workMode,
-    experienceLevel,
-    minExperience,
-    maxExperience,
-    location,
-    salaryMin,
-    salaryMax,
-    salaryCurrency,
-    isNegotiable,
-    isSalaryHidden,
-    applicationDeadline,
-    totalOpenings,
-    requiresVerification: requiresVerification !== undefined ? requiresVerification : true,
+    salaryRange: {
+      min: req.body.salaryRange?.min || (req.body.salaryMin ? req.body.salaryMin * 100000 : 0),
+      max: req.body.salaryRange?.max || (req.body.salaryMax ? req.body.salaryMax * 100000 : 0),
+      currency: "INR",
+    },
+    requiresVerification: req.body.requiresVerification === true || req.body.requiresVerification === "true",
+    company: req.body.company || hrProfile.companyName,
     postedBy: req.user._id,
-    hrProfile: hrProfile._id,
+    status: "active",
   });
 
-  // Update HR stats
-  await HRProfile.findByIdAndUpdate(hrProfile._id, { $inc: { totalJobsPosted: 1 } });
-
+  await HRProfile.findOneAndUpdate({ user: req.user._id }, { $inc: { totalJobsPosted: 1 } });
   res.status(201).json(new ApiResponse(201, { job }, "Job posted successfully"));
 });
 
-// @desc    Get all jobs posted by this HR
-// @route   GET /api/v1/hr/jobs
-// @access  Private (hr)
 const getMyJobs = asyncHandler(async (req, res) => {
-  const { status, page = 1, limit = 10 } = req.query;
+  const { status, page = 1, limit = 20 } = req.query;
   const filter = { postedBy: req.user._id };
   if (status) filter.status = status;
-
   const skip = (page - 1) * limit;
+
   const [jobs, total] = await Promise.all([
-    Job.find(filter)
-      .populate("domain", "name")
-      .populate("requiredSkills", "name")
-      .sort("-createdAt")
-      .skip(skip)
-      .limit(Number(limit)),
+    Job.find(filter).populate("domain", "name").populate("requiredSkills", "name").sort("-createdAt").skip(skip).limit(Number(limit)),
     Job.countDocuments(filter),
   ]);
 
-  res.json(new ApiResponse(200, { jobs, total, page: Number(page), pages: Math.ceil(total / limit) }));
+  const jobIds = jobs.map(j => j._id);
+  const appCounts = await Application.aggregate([
+    { $match: { job: { $in: jobIds } } },
+    { $group: { _id: "$job", count: { $sum: 1 } } },
+  ]);
+  const countMap = {};
+  appCounts.forEach(a => { countMap[a._id.toString()] = a.count; });
+
+  const enriched = jobs.map(j => ({ ...j.toObject(), applicationsCount: countMap[j._id.toString()] || 0 }));
+  res.json(new ApiResponse(200, { jobs: enriched, total, page: Number(page), pages: Math.ceil(total / limit) }));
 });
 
-// @desc    Update a job
-// @route   PUT /api/v1/hr/jobs/:id
-// @access  Private (hr)
 const updateJob = asyncHandler(async (req, res, next) => {
   const job = await Job.findOne({ _id: req.params.id, postedBy: req.user._id });
   if (!job) return next(new ApiError(404, "Job not found"));
-
-  const allowedUpdates = ["title", "description", "requirements", "responsibilities", "requiredSkills", "preferredSkills", "jobType", "workMode", "salaryMin", "salaryMax", "applicationDeadline", "totalOpenings", "status"];
-  allowedUpdates.forEach((key) => { if (req.body[key] !== undefined) job[key] = req.body[key]; });
+  const allowed = ["title","description","requirements","responsibilities","requiredSkills","preferredSkills","jobType","workMode","salaryRange","applicationDeadline","totalOpenings","status"];
+  allowed.forEach(k => { if (req.body[k] !== undefined) job[k] = req.body[k]; });
   await job.save();
-
   res.json(new ApiResponse(200, { job }, "Job updated"));
 });
 
-// @desc    Get applications for a job (with freemium limit + skill matching)
-// @route   GET /api/v1/hr/jobs/:id/applications
-// @access  Private (hr)
 const getJobApplications = asyncHandler(async (req, res, next) => {
   const job = await Job.findOne({ _id: req.params.id, postedBy: req.user._id })
     .populate("requiredSkills", "_id name")
     .populate("domain", "_id name");
-
   if (!job) return next(new ApiError(404, "Job not found"));
 
-  // Get HR plan
   const hrProfile = await HRProfile.findOne({ user: req.user._id });
-  const isPremium = hrProfile?.isPremium || false;
-
-  // Free tier: 10 candidates, Premium: 20 candidates
-  const FREE_LIMIT = 10;
-  const PREMIUM_LIMIT = 20;
+  const plan      = hrProfile?.plan || "free";
+  const limit     = PLAN_LIMITS[plan] ?? 10;
 
   const { status, page = 1 } = req.query;
   const filter = { job: job._id };
   if (status) filter.status = status;
 
-  // ── Smart Matching ───────────────────────────
-  // Pull ALL applications with candidate profiles
-  const allApplications = await Application.find(filter)
+  const all = await Application.find(filter)
     .populate("candidate", "name email avatar isVerified")
     .populate({
       path: "candidateProfile",
       populate: [
-        { path: "skills", select: "_id name" },
+        { path: "skills",  select: "_id name" },
         { path: "domains", select: "_id name" },
       ],
-      select: "headline skills domains overallScore profileCompleteness socialLinks capstoneProject",
+      select: "headline skills domains overallScore profileCompleteness socialLinks capstoneProject resumeUrl avatarUrl publicSlug",
     })
-    .sort({ "candidateProfile.overallScore": -1, appliedAt: -1 });
+    .sort({ appliedAt: -1 });
 
-  // Score each application by skill match
+  // Smart match scoring
   const jobSkillIds = (job.requiredSkills || []).map(s => s._id.toString());
   const jobDomainId = job.domain?._id?.toString();
 
-  const scored = allApplications.map(app => {
-    const candSkillIds = (app.candidateProfile?.skills || []).map(s => s._id.toString());
-    const candDomainIds = (app.candidateProfile?.domains || []).map(d => d._id.toString());
-
-    const skillMatches = jobSkillIds.filter(id => candSkillIds.includes(id)).length;
-    const domainMatch = jobDomainId && candDomainIds.includes(jobDomainId) ? 1 : 0;
-
+  const scored = all.map(app => {
+    const candSkills  = (app.candidateProfile?.skills  || []).map(s => s._id.toString());
+    const candDomains = (app.candidateProfile?.domains || []).map(d => d._id.toString());
+    const matched    = jobSkillIds.filter(id => candSkills.includes(id)).length;
+    const domainHit  = jobDomainId && candDomains.includes(jobDomainId) ? 1 : 0;
     const matchScore = jobSkillIds.length > 0
-      ? Math.round(((skillMatches + domainMatch) / (jobSkillIds.length + 1)) * 100)
-      : domainMatch ? 100 : 50;
-
+      ? Math.round(((matched + domainHit) / (jobSkillIds.length + 1)) * 100)
+      : domainHit ? 100 : 50;
     return { ...app.toObject(), matchScore };
   });
 
-  // Sort by match score first
   scored.sort((a, b) => b.matchScore - a.matchScore);
 
-  const total = scored.length;
-
-  // Freemium: free = 10, premium = 20
-  const visibleApplications = isPremium
-    ? scored.slice((page - 1) * PREMIUM_LIMIT, page * PREMIUM_LIMIT)
-    : scored.slice(0, FREE_LIMIT);
-
-  const lockedCount = isPremium ? 0 : Math.max(0, total - FREE_LIMIT);
+  const total       = scored.length;
+  const visible     = limit === Infinity ? scored : scored.slice(0, limit);
+  const lockedCount = limit === Infinity ? 0 : Math.max(0, total - limit);
 
   res.json(new ApiResponse(200, {
-    applications: visibleApplications,
-    total,
-    lockedCount,
-    isPremium,
-    freeLimit: FREE_LIMIT,
-    page: Number(page),
-    pages: isPremium ? Math.ceil(total / 10) : 1,
+    applications: visible,
+    total, lockedCount, plan,
+    freeLimit: PLAN_LIMITS.free,
+    proLimit:  PLAN_LIMITS.pro,
+    isPremium: plan !== "free",
+    page: Number(page), pages: 1,
   }));
 });
 
-// @desc    Update application status
-// @route   PUT /api/v1/hr/applications/:id
-// @access  Private (hr)
 const updateApplicationStatus = asyncHandler(async (req, res, next) => {
   const { status, hrNotes, rating, interviewDate, interviewLink, interviewType } = req.body;
-
-  const application = await Application.findById(req.params.id).populate("job");
-  if (!application) return next(new ApiError(404, "Application not found"));
-
-  // Verify HR owns this job
-  if (application.job.postedBy.toString() !== req.user._id.toString()) {
+  const app = await Application.findById(req.params.id).populate("job");
+  if (!app) return next(new ApiError(404, "Application not found"));
+  if (app.job.postedBy.toString() !== req.user._id.toString())
     return next(new ApiError(403, "Not authorized"));
-  }
 
-  if (status) application.status = status;
-  if (hrNotes !== undefined) application.hrNotes = hrNotes;
-  if (rating !== undefined) application.rating = rating;
-  if (interviewDate) application.interviewDate = interviewDate;
-  if (interviewLink) application.interviewLink = interviewLink;
-  if (interviewType) application.interviewType = interviewType;
-  application.updatedBy = req.user._id;
-
-  await application.save();
-  res.json(new ApiResponse(200, { application }, "Application updated"));
+  if (status) app.status = status;
+  if (hrNotes !== undefined) app.hrNotes = hrNotes;
+  if (rating !== undefined)  app.rating  = rating;
+  if (interviewDate) app.interviewDate = interviewDate;
+  if (interviewLink) app.interviewLink = interviewLink;
+  if (interviewType) app.interviewType = interviewType;
+  app.updatedBy = req.user._id;
+  await app.save();
+  res.json(new ApiResponse(200, { application: app }, "Application updated"));
 });
 
-// @desc    Upgrade HR to premium (admin only)
-// @route   PUT /api/v1/hr/premium/:userId
-// @access  Private (admin)
-const upgradeHRToPremium = asyncHandler(async (req, res, next) => {
+// Admin only — upgrade HR plan
+const upgradeHRPlan = asyncHandler(async (req, res, next) => {
+  const { plan } = req.body;
+  if (!["free","pro","enterprise"].includes(plan))
+    return next(new ApiError(400, "Invalid plan. Use: free | pro | enterprise"));
+
   const profile = await HRProfile.findOneAndUpdate(
     { user: req.params.userId },
-    { isPremium: true, premiumSince: new Date() },
+    { plan, planSince: new Date(), isPremium: plan !== "free" },
     { new: true }
   );
   if (!profile) return next(new ApiError(404, "HR profile not found"));
-  res.json(new ApiResponse(200, { profile }, "HR upgraded to premium"));
+  res.json(new ApiResponse(200, { profile }, `Plan upgraded to ${plan}`));
 });
 
 module.exports = {
-  getHRProfile,
-  updateHRProfile,
-  postJob,
-  getMyJobs,
-  updateJob,
-  getJobApplications,
-  updateApplicationStatus,
-  upgradeHRToPremium,
+  getHRProfile, updateHRProfile, postJob, getMyJobs,
+  updateJob, getJobApplications, updateApplicationStatus, upgradeHRPlan,
 };

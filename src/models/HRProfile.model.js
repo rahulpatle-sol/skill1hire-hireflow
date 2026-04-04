@@ -8,29 +8,44 @@ const hrProfileSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    // LinkedIn-style public URL slug
+    publicSlug: { type: String, unique: true, sparse: true },
+
     companyName: {
       type: String,
       required: [true, "Company name is required"],
       trim: true,
     },
     companyWebsite: { type: String, default: "" },
-    companyLogo: { type: String, default: "" },
+    companyLogo:    { type: String, default: "" },
     companySize: {
       type: String,
       enum: ["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"],
       default: "1-10",
     },
-    industry: { type: String, default: "" },
+    industry:    { type: String, default: "" },
     designation: { type: String, default: "" },
-    phone: { type: String, default: "" },
-    location: { type: String, default: "" },
-    bio: { type: String, maxlength: 500, default: "" },
+    phone:       { type: String, default: "" },
+    location:    { type: String, default: "" },
+    bio:         { type: String, maxlength: 500, default: "" },
 
-    // Premium plan
+    // ── Subscription / Plan ───────────────────────
+    // free     → 10 candidates per job
+    // pro      → 25 candidates per job
+    // enterprise → unlimited
+    plan: {
+      type: String,
+      enum: ["free", "pro", "enterprise"],
+      default: "free",
+    },
+    planSince:     { type: Date },
+    planExpiresAt: { type: Date },
+
+    // Legacy field kept for backward compat
     isPremium: { type: Boolean, default: false },
     premiumSince: { type: Date },
 
-    // Verification by admin
+    // ── Verification ──────────────────────────────
     isVerified: { type: Boolean, default: false },
     verificationStatus: {
       type: String,
@@ -38,16 +53,22 @@ const hrProfileSchema = new mongoose.Schema(
       default: "pending",
     },
     verificationNote: { type: String, default: "" },
-    verifiedAt: { type: Date },
+    verifiedAt:       { type: Date },
 
-    // Stats
+    // ── Stats ─────────────────────────────────────
     totalJobsPosted: { type: Number, default: 0 },
-    totalHires: { type: Number, default: 0 },
+    totalHires:      { type: Number, default: 0 },
   },
   { timestamps: true }
 );
 
-// user is already indexed via unique:true
+// ── Plan limits helper ────────────────────────────
+hrProfileSchema.methods.getCandidateLimit = function () {
+  const limits = { free: 10, pro: 25, enterprise: Infinity };
+  return limits[this.plan] ?? 10;
+};
+
+// user already indexed via unique:true
 hrProfileSchema.index({ isVerified: 1 });
 hrProfileSchema.index({ companyName: "text" });
 

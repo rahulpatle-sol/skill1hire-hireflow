@@ -220,6 +220,55 @@ const adminPostJob = asyncHandler(async (req, res) => {
   res.status(201).json(new ApiResponse(201, { job }, "Job posted by admin"));
 });
 
+
+// ── Assign Assessment to Candidate ───────────────
+// @route PUT /api/v1/admin/assign-assessment/:candidateId
+// @access Private (admin)
+const assignAssessment = asyncHandler(async (req, res, next) => {
+  const { assessmentIds } = req.body; // array of assessment _ids
+  if (!Array.isArray(assessmentIds))
+    return next(new ApiError(400, "assessmentIds must be an array"));
+
+  const profile = await CandidateProfile.findOneAndUpdate(
+    { user: req.params.candidateId },
+    { assignedAssessments: assessmentIds },
+    { new: true }
+  ).populate("assignedAssessments", "title domain level");
+
+  if (!profile) return next(new ApiError(404, "Candidate profile not found"));
+  res.json(new ApiResponse(200, { profile }, "Assessments assigned successfully"));
+});
+
+// ── Remove Assigned Assessments ───────────────────
+// @route DELETE /api/v1/admin/assign-assessment/:candidateId
+// @access Private (admin)
+const removeAssignedAssessments = asyncHandler(async (req, res, next) => {
+  const profile = await CandidateProfile.findOneAndUpdate(
+    { user: req.params.candidateId },
+    { assignedAssessments: [] },
+    { new: true }
+  );
+  if (!profile) return next(new ApiError(404, "Candidate profile not found"));
+  res.json(new ApiResponse(200, { profile }, "Assigned assessments removed"));
+});
+
+// ── Upgrade HR Plan ───────────────────────────────
+// @route PUT /api/v1/admin/hr-plan/:userId
+// @access Private (admin)
+const upgradeHRPlan = asyncHandler(async (req, res, next) => {
+  const { plan } = req.body;
+  if (!["free","pro","enterprise"].includes(plan))
+    return next(new ApiError(400, "Invalid plan: use free | pro | enterprise"));
+
+  const profile = await HRProfile.findOneAndUpdate(
+    { user: req.params.userId },
+    { plan, planSince: new Date(), isPremium: plan !== "free" },
+    { new: true }
+  );
+  if (!profile) return next(new ApiError(404, "HR profile not found"));
+  res.json(new ApiResponse(200, { profile }, `HR upgraded to ${plan}`));
+});
+
 module.exports = {
   getDashboard,
   verifyUser,
@@ -234,4 +283,7 @@ module.exports = {
   getAllUsers,
   toggleUserActive,
   adminPostJob,
+  assignAssessment,
+  removeAssignedAssessments,
+  upgradeHRPlan,
 };
