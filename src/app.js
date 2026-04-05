@@ -10,6 +10,8 @@ require("./config/passport");
 const errorHandler = require("./middleware/error.middleware");
 
 const app = express();
+app.set("trust proxy");
+
 
 // ── Security ──────────────────────────────────────
 app.use(helmet());
