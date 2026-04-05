@@ -205,15 +205,16 @@ const forgotPassword = asyncHandler(async (req, res, next) => {
     resetPasswordExpiry: new Date(Date.now() + 60 * 60 * 1000),
   });
 
-  try {
-    await sendPasswordResetEmail(user.email, user.name, resetToken);
-  } catch (err) {
-    await User.findByIdAndUpdate(user._id, {
-      resetPasswordToken: undefined,
-      resetPasswordExpiry: undefined,
-    });
-    return next(new ApiError(500, "Failed to send reset email. Check your SMTP config."));
-  }
+try {
+  await sendPasswordResetEmail(user.email, user.name, resetToken);
+} catch (err) {
+  console.error("📧 ACTUAL EMAIL ERROR:", err); // ← yeh add karo
+  await User.findByIdAndUpdate(user._id, {
+    resetPasswordToken: undefined,
+    resetPasswordExpiry: undefined,
+  });
+  return next(new ApiError(500, `Email error: ${err.message}`)); // ← actual message
+}
 
   res.json(new ApiResponse(200, null, "Password reset email sent"));
 });

@@ -1,25 +1,17 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
-const getTransporter = () =>
-  nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async ({ to, subject, html }) => {
-  const transporter = getTransporter();
-  const info = await transporter.sendMail({
-    from: `"HireFlow" <${process.env.SMTP_USER}>`,
+  const { data, error } = await resend.emails.send({
+    from: "HireFlow <noreply@rahulpatle.xyz>", // ya apna domain verify kara ho to: noreply@yourdomain.com
     to,
     subject,
     html,
   });
-  return info;
+
+  if (error) throw new Error(error.message);
+  return data;
 };
 
 const sendVerificationEmail = async (email, name, token) => {
@@ -49,5 +41,5 @@ const sendPasswordResetEmail = async (email, name, token) => {
     `,
   });
 };
-
+console.log("RESEND KEY:", process.env.RESEND_API_KEY); // debug
 module.exports = { sendEmail, sendVerificationEmail, sendPasswordResetEmail };
