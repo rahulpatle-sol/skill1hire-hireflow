@@ -10,7 +10,7 @@ const {
 } = require("../../controllers/admin/admin.controller");
 
 // ── All admin routes protected ────────────────────
-router.use(protect, isAdmin); // 
+router.use(protect, authorizeRoles("admin")); // ← fix
 
 router.get("/dashboard", getDashboard);
 router.get("/users", getAllUsers);
