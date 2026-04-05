@@ -5,6 +5,7 @@ const ApiError    = require("../../utils/ApiError");
 const ApiResponse = require("../../utils/ApiResponse");
 const asyncHandler = require("../../utils/asyncHandler");
 const { createUniqueSlug } = require("../../utils/slugify");
+const { Domain } = require("../../models/Domain.model");
 
 const PLAN_LIMITS = { free: 10, pro: 25, enterprise: Infinity };
 
@@ -30,6 +31,7 @@ const postJob = asyncHandler(async (req, res, next) => {
   const slug = createUniqueSlug(req.body.title);
   const job = await Job.create({
     ...req.body,
+    domain:req.body.domain||undefined,
     slug,
     salaryRange: {
       min: req.body.salaryRange?.min || (req.body.salaryMin ? req.body.salaryMin * 100000 : 0),
