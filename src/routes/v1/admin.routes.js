@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const { protect, isAdmin } = require("../../middleware/auth.middleware"); 
+const { protect, authorizeRoles } = require("../../middleware/auth.middleware"); // ← path check karo
 const {
   getDashboard, verifyUser, getPendingVerifications,
   createDomain, getDomains, updateDomain,
