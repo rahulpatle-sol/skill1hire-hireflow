@@ -69,8 +69,8 @@ describe("Auth API Tests", () => {
   beforeEach(() => jest.clearAllMocks());
 
   // ── Health ──────────────────────────────────
-  test("GET /health → 200 OK", async () => {
-    const res = await request(app).get("/health");
+  test("GET /health/json → 200 OK", async () => {
+    const res = await request(app).get("/health/json");
     expect(res.statusCode).toBe(200);
     expect(res.body.status).toBe("OK");
   });
