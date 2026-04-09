@@ -104,8 +104,9 @@ const submitAssessment = asyncHandler(async (req, res, next) => {
     }
   });
 
-  const pct      = Math.round((obtained / totalMarks) * 100);
-  const isPassed = pct >= assessment.passingScore;
+  const pct       = Math.round((obtained / totalMarks) * 100);
+  const passMarks = assessment.passingMarks || Math.ceil(totalMarks * 0.6);
+  const isPassed  = obtained >= passMarks;
 
   // Count previous attempts
   const prevCount = await AssessmentResult.countDocuments({

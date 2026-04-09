@@ -25,6 +25,7 @@ const updateProfile = asyncHandler(async (req, res, next) => {
   const {
     headline, bio, location, phone,
     education, experience, socialLinks,
+    avatarUrl, resumeUrl,
   } = req.body;
 
   const profile = await CandidateProfile.findOne({ user: req.user._id });
@@ -37,6 +38,8 @@ const updateProfile = asyncHandler(async (req, res, next) => {
   if (education !== undefined) profile.education = education;
   if (experience !== undefined) profile.experience = experience;
   if (socialLinks !== undefined) profile.socialLinks = socialLinks;
+  if (avatarUrl !== undefined) profile.avatarUrl = avatarUrl;
+  if (resumeUrl !== undefined) profile.resumeUrl = resumeUrl;
 
   // Generate public slug if not exists
   if (!profile.publicSlug) {
