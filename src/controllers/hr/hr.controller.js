@@ -29,17 +29,39 @@ const postJob = asyncHandler(async (req, res, next) => {
   if (!hrProfile) return next(new ApiError(404, "HR profile not found"));
 
   const slug = createUniqueSlug(req.body.title);
+  
+  let domainId = req.body.domain;
+  if (domainId && !domainId.match(/^[0-9a-fA-F]{24}$/)) {
+    // If not an ObjectId, treat it as a new domain name
+    let dSlug = createUniqueSlug(domainId);
+    let existingDomain = await Domain.findOne({ slug: dSlug });
+    if (!existingDomain) {
+      existingDomain = await Domain.create({ 
+        name: domainId, 
+        slug: dSlug, 
+        createdBy: req.user._id,
+        description: "Created by HR during job posting" 
+      });
+    }
+    domainId = existingDomain._id;
+  }
+
   const job = await Job.create({
     ...req.body,
-    domain:req.body.domain||undefined,
+    domain: domainId || undefined,
     slug,
     salaryRange: {
       min: req.body.salaryRange?.min || (req.body.salaryMin ? req.body.salaryMin * 100000 : 0),
       max: req.body.salaryRange?.max || (req.body.salaryMax ? req.body.salaryMax * 100000 : 0),
       currency: "INR",
     },
+    isExternalJob: req.body.isExternalJob === true || req.body.isExternalJob === "true",
+    externalCompanyName: req.body.externalCompanyName,
+    externalCompanyLogo: req.body.externalCompanyLogo,
+    externalCompanyWebsite: req.body.externalCompanyWebsite,
+    externalApplyLink: req.body.externalApplyLink,
     requiresVerification: req.body.requiresVerification === true || req.body.requiresVerification === "true",
-    company: req.body.company || hrProfile.companyName,
+    company: req.body.isExternalJob ? req.body.externalCompanyName : (req.body.company || hrProfile.companyName),
     postedBy: req.user._id,
     status: "active",
   });

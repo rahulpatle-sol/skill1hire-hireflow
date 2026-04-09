@@ -68,6 +68,13 @@ const jobSchema = new mongoose.Schema(
       default: "active",
     },
 
+    // External/Custom jobs (For companies other than the HR's main company)
+    isExternalJob: { type: Boolean, default: false },
+    externalCompanyName: { type: String },
+    externalCompanyLogo: { type: String },
+    externalCompanyWebsite: { type: String },
+    externalApplyLink: { type: String },
+
     // Access control — only verified candidates can apply
     requiresVerification: { type: Boolean, default: true },
 
