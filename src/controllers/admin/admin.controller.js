@@ -269,6 +269,40 @@ const upgradeHRPlan = asyncHandler(async (req, res, next) => {
   res.json(new ApiResponse(200, { profile }, `HR upgraded to ${plan}`));
 });
 
+// ── Get Full User Profile ─────────────────────────
+// @route GET /api/v1/admin/users/:id/profile
+const getUserFullProfile = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+  if (!user) return next(new ApiError(404, "User not found"));
+
+  let profile = null;
+
+  if (user.role === "candidate") {
+    profile = await CandidateProfile.findOne({ user: user._id })
+      .populate("skills", "name")
+      .populate("domains", "name")
+      .populate("assignedAssessments", "title domain level");
+  } else if (user.role === "hr") {
+    profile = await HRProfile.findOne({ user: user._id });
+  } else if (user.role === "mentor") {
+    profile = await MentorProfile.findOne({ user: user._id });
+  }
+
+  res.json(new ApiResponse(200, { user, profile }));
+});
+
+// ── Get Assessment Results for a User ─────────────
+// @route GET /api/v1/admin/users/:id/assessment-results
+const getUserAssessmentResults = asyncHandler(async (req, res, next) => {
+  const { AssessmentResult } = require("../../models/Assessment.model");
+
+  const results = await AssessmentResult.find({ candidate: req.params.id })
+    .populate("assessment", "title domain level totalMarks passingMarks durationMinutes")
+    .sort("-completedAt");
+
+  res.json(new ApiResponse(200, { results, total: results.length }));
+});
+
 module.exports = {
   getDashboard,
   verifyUser,
@@ -286,4 +320,6 @@ module.exports = {
   assignAssessment,
   removeAssignedAssessments,
   upgradeHRPlan,
+  getUserFullProfile,
+  getUserAssessmentResults,
 };

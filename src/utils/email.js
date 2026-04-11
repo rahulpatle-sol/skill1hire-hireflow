@@ -41,5 +41,5 @@ const sendPasswordResetEmail = async (email, name, token) => {
     `,
   });
 };
-console.log("RESEND KEY:", process.env.RESEND_API_KEY); // debug
+// console.log("RESEND KEY:", process.env.RESEND_API_KEY); // debug
 module.exports = { sendEmail, sendVerificationEmail, sendPasswordResetEmail };

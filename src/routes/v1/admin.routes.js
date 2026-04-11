@@ -7,6 +7,7 @@ const {
   createAssessment, getAssessments,
   getAllUsers, toggleUserActive,
   adminPostJob, assignAssessment, removeAssignedAssessments, upgradeHRPlan,
+  getUserFullProfile, getUserAssessmentResults,
 } = require("../../controllers/admin/admin.controller");
 
 // ── All admin routes protected ────────────────────
@@ -14,6 +15,8 @@ router.use(protect, authorizeRoles("admin")); // ← fix
 
 router.get("/dashboard", getDashboard);
 router.get("/users", getAllUsers);
+router.get("/users/:id/profile", getUserFullProfile);
+router.get("/users/:id/assessment-results", getUserAssessmentResults);
 router.put("/users/:id/toggle-active", toggleUserActive);
 router.put("/verify/:userId", verifyUser);
 router.get("/pending/:role", getPendingVerifications);
