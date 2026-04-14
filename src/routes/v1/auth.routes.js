@@ -3,7 +3,7 @@ const passport = require("passport");
 const { body } = require("express-validator");
 const {
   register, login, googleCallback, refreshToken,
-  logout, verifyEmail, forgotPassword, resetPassword, getMe,
+  logout, verifyEmail, forgotPassword, resetPassword, getMe, deleteAccount
 } = require("../../controllers/auth/auth.controller");
 const { protect } = require("../../middleware/auth.middleware");
 const validate = require("../../middleware/validate.middleware");
@@ -34,6 +34,7 @@ router.post("/reset-password/:token",
   resetPassword
 );
 router.get("/me", protect, getMe);
+router.delete("/delete-account", protect, deleteAccount);
 
 // ── Google OAuth ──────────────────────────────────
 router.get(

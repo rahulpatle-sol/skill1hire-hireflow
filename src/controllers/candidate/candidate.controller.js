@@ -182,6 +182,26 @@ const calculateCompleteness = (profile) => {
   return score;
 };
 
+// @desc    Get mentor sessions
+// @route   GET /api/v1/candidate/sessions
+// @access  Private (candidate)
+const getMySessions = asyncHandler(async (req, res, next) => {
+  const MentorSession = require("../../models/MentorSession.model");
+  const CandidateProfile = require("../../models/CandidateProfile.model");
+  
+  const profile = await CandidateProfile.findOne({ user: req.user._id });
+  if (!profile) return next(new ApiError(404, "Candidate profile not found"));
+
+  const sessions = await MentorSession.find({ candidate: profile._id })
+    .populate({
+      path: "mentor",
+      populate: { path: "user", select: "name avatar email" }
+    })
+    .sort("-createdAt");
+
+  res.json(new ApiResponse(200, { sessions }, "Sessions fetched successfully"));
+});
+
 module.exports = {
   getMyProfile,
   updateProfile,
@@ -190,4 +210,5 @@ module.exports = {
   getPublicProfile,
   submitCapstone,
   getScorecard,
+  getMySessions,
 };

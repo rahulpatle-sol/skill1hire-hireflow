@@ -2,7 +2,7 @@ const router = require("express").Router();
 const { protect, authorizeRoles, isVerified } = require("../../middleware/auth.middleware");
 const {
   getMyProfile, updateProfile, updateSkills,
-  updateSocialLinks, getPublicProfile, submitCapstone, getScorecard,
+  updateSocialLinks, getPublicProfile, submitCapstone, getScorecard, getMySessions
 } = require("../../controllers/candidate/candidate.controller");
 const {
   getMyAssessments, getAssessmentById, submitAssessment,
@@ -23,6 +23,7 @@ router.put("/skills", updateSkills);
 router.put("/social-links", updateSocialLinks);
 router.post("/capstone", submitCapstone);
 router.get("/scorecard", getScorecard);
+router.get("/sessions", getMySessions);
 
 // Assessments
 router.get("/assessments", getMyAssessments);

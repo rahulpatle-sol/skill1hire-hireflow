@@ -67,6 +67,13 @@ const postJob = asyncHandler(async (req, res, next) => {
   });
 
   await HRProfile.findOneAndUpdate({ user: req.user._id }, { $inc: { totalJobsPosted: 1 } });
+
+  const { enqueueEmail } = require("../../services/queue.service");
+  const { generateHRJobPostedEmail } = require("../../utils/emails/hr.emails");
+  if (enqueueEmail && req.user.email) {
+    enqueueEmail(req.user.email, "Job Successfully Posted on Skill1 Hire", generateHRJobPostedEmail(hrProfile.companyName || req.user.name, job.title)).catch(console.error);
+  }
+
   res.status(201).json(new ApiResponse(201, { job }, "Job posted successfully"));
 });
 
@@ -180,18 +187,12 @@ const updateApplicationStatus = asyncHandler(async (req, res, next) => {
 
   // Push notification to queue
   const { enqueueEmail } = require("../../services/queue.service");
+  const { generateCandidateStatusUpdateEmail } = require("../../utils/emails/hr.emails");
+
   if (status && enqueueEmail) {
-    const statusFormatted = status.replace("_", " ").toUpperCase();
-    const emailHtml = `
-      <h2>Application Update: ${app.job.title}</h2>
-      <p>Hello ${app.candidate.name},</p>
-      <p>Your application status is now: <strong>${statusFormatted}</strong></p>
-      ${interviewDate ? `<p><strong>Interview Scheduled:</strong> ${new Date(interviewDate).toLocaleString()}</p>` : ""}
-      ${interviewLink ? `<p><strong>Link:</strong> <a href="${interviewLink}">Join Interview</a></p>` : ""}
-      <p>Log in to your candidate dashboard for more details.</p>
-    `;
+    const html = generateCandidateStatusUpdateEmail(app.candidate.name, app.job.title, status, interviewDate, interviewLink);
     // Fire and forget
-    enqueueEmail(app.candidate.email, `Application Update: ${app.job.title}`, emailHtml).catch(console.error);
+    enqueueEmail(app.candidate.email, `Application Update: ${app.job.title}`, html).catch(console.error);
   }
 
   res.json(new ApiResponse(200, { application: app }, "Application updated"));

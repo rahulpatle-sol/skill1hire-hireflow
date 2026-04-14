@@ -1,4 +1,4 @@
-# HireFlow Backend API 🚀
+# Skill1 Hire Backend API 🚀
 
 A full-featured hiring portal backend built with Node.js, Express.js, and MongoDB.
 
@@ -25,7 +25,7 @@ npm test                  # Run tests
 
 ## Docs
 - Full API Docs → `/docs/API_DOCS.md`
-- Postman Collection → `/postman/HireFlow_API.postman_collection.json`
+- Postman Collection → `/postman/Skill1Hire_API.postman_collection.json`
 
 ## Deployment
 - **Backend**: Render.com (`npm start`)

@@ -31,7 +31,7 @@ function getHealthData() {
   return {
     success: true,
     status: "OK",
-    message: "HireFlow API is running 🚀",
+    message: "Skill1 Hire API is running 🚀",
     env: process.env.NODE_ENV || "development",
     time: new Date().toISOString(),
     uptime: `${h}h ${m}m ${s}s`,
@@ -189,7 +189,7 @@ h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(1.8rem,4vw,2.6rem);fon
   </div>
 
   <div class="footer">
-    <p>&copy; ${year} Skill1 Hire &middot; HireFlow API &middot; All systems monitored 24/7</p>
+    <p>&copy; ${year} Skill1 Hire &middot; API &middot; All systems monitored 24/7</p>
   </div>
 </div>
 <script>
@@ -289,6 +289,7 @@ app.use("/api/v1/hr",        require("./routes/v1/hr.routes"));
 app.use("/api/v1/mentor",    require("./routes/v1/mentor.routes"));
 app.use("/api/v1/admin",     require("./routes/v1/admin.routes"));
 app.use("/api/v1/jobs",      require("./routes/v1/job.routes"));
+app.use("/api/v1/upload",    require("./routes/v1/upload.routes"));
 app.use("/api/v1/meta",      require("./routes/v1/meta.routes")); // public — no auth needed
 
 // ── 404 ───────────────────────────────────────────

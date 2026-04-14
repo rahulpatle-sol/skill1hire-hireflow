@@ -45,6 +45,8 @@ const userSchema = new mongoose.Schema(
     verifiedAt: { type: Date },
     verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     isActive: { type: Boolean, default: true },
+    isLocked: { type: Boolean, default: false }, // 24-hr deletion lock
+    scheduledDeletionAt: { type: Date }, 
     lastLogin: { type: Date },
   },
   { timestamps: true }

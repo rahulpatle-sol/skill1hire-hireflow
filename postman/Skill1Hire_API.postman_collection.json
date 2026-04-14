@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "HireFlow API",
-    "description": "Complete API collection for HireFlow Hiring Portal",
+    "name": "Skill1 Hire API",
+    "description": "Complete API collection for Skill1 Hire Hiring Portal",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

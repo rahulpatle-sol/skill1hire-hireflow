@@ -80,21 +80,12 @@ const verifyUser = asyncHandler(async (req, res, next) => {
   }
 
   const { enqueueEmail } = require("../../services/queue.service");
+  const { generateProfileVerifiedEmail, generateProfileRejectedEmail } = require("../../utils/emails/admin.emails");
+
   if (enqueueEmail && isVerified) {
-    const emailHtml = `
-      <h2>Welcome to HireFlow Premium</h2>
-      <p>Hello ${user.name},</p>
-      <p>Your profile has been fully verified by our administrative team!</p>
-      <p>You can now access exclusive ${user.role} features across the platform.</p>
-    `;
-    enqueueEmail(user.email, "Profile Verified ✅", emailHtml).catch(console.error);
+    enqueueEmail(user.email, "Profile Verified ✅", generateProfileVerifiedEmail(user.name, user.role)).catch(console.error);
   } else if (enqueueEmail && !isVerified) {
-    const emailHtml = `
-      <h2>Account Review Update</h2>
-      <p>Hello ${user.name},</p>
-      <p>Your profile verification request was updated. Note: ${noteText || 'Please ensure your profile is complete.'}</p>
-    `;
-    enqueueEmail(user.email, "Verification Status Update", emailHtml).catch(console.error);
+    enqueueEmail(user.email, "Verification Status Update", generateProfileRejectedEmail(user.name, noteText)).catch(console.error);
   }
 
   res.json(new ApiResponse(200, null, `User ${isVerified ? "verified ✅" : "rejected"} successfully`));
@@ -259,14 +250,9 @@ const assignAssessment = asyncHandler(async (req, res, next) => {
   if (!profile) return next(new ApiError(404, "Candidate profile not found"));
 
   const { enqueueEmail } = require("../../services/queue.service");
+  const { generateAssessmentAssignedEmail } = require("../../utils/emails/candidate.emails");
   if (enqueueEmail && profile.user && profile.user.email) {
-    const emailHtml = `
-      <h2>New Assessments Assigned</h2>
-      <p>Hello ${profile.user.name},</p>
-      <p>The Admin team has assigned you ${assessmentIds.length} new skill assessment(s).</p>
-      <p>Login to your Candidate Dashboard to complete them and boost your HireScore\u2122!</p>
-    `;
-    enqueueEmail(profile.user.email, "New Assessment Assigned", emailHtml).catch(console.error);
+    enqueueEmail(profile.user.email, "New Assessment Assigned", generateAssessmentAssignedEmail(profile.user.name, assessmentIds.length)).catch(console.error);
   }
 
   res.json(new ApiResponse(200, { profile }, "Assessments assigned successfully"));
@@ -357,18 +343,44 @@ const updateCapstoneStatus = asyncHandler(async (req, res, next) => {
   if (!profile) return next(new ApiError(404, "Candidate profile not found"));
 
   const { enqueueEmail } = require("../../services/queue.service");
+  const { generateCapstoneReviewEmail } = require("../../utils/emails/admin.emails");
+  
   if (enqueueEmail && profile.user && profile.user.email) {
-    const emailHtml = `
-      <h2>Capstone Project Status: ${status.toUpperCase()}</h2>
-      <p>Hello ${profile.user.name},</p>
-      <p>Your Capstone Project review is complete.</p>
-      <p><strong>Status:</strong> ${status.toUpperCase()}</p>
-      ${feedback ? `<p><strong>Feedback:</strong> ${feedback}</p>` : ""}
-    `;
-    enqueueEmail(profile.user.email, "Capstone Project Review Results", emailHtml).catch(console.error);
+    enqueueEmail(profile.user.email, "Capstone Project Review Results", generateCapstoneReviewEmail(profile.user.name, status, feedback)).catch(console.error);
   }
 
   res.json(new ApiResponse(200, null, `Capstone project ${status}`));
+});
+
+// ── Get Analytics ───────────────────────────────
+// @route GET /api/v1/admin/analytics
+const getAnalytics = asyncHandler(async (req, res) => {
+  const JobApplication = require("../../models/JobApplication.model");
+  
+  const totalJobs = await Job.countDocuments();
+  const totalHires = await JobApplication.countDocuments({ status: "hired" });
+  const totalApplications = await JobApplication.countDocuments();
+
+  const recentHires = await JobApplication.find({ status: "hired" })
+    .populate("candidate", "name email avatar")
+    .populate("job", "title companyName")
+    .sort("-updatedAt")
+    .limit(10);
+
+  res.json(new ApiResponse(200, { totalJobs, totalHires, totalApplications, recentHires }));
+});
+
+// ── Get All Capstones ─────────────────────────────
+// @route GET /api/v1/admin/capstones
+const getCapstones = asyncHandler(async (req, res) => {
+  const profiles = await CandidateProfile.find({
+    "capstoneProject.status": { $in: ["pending_review", "approved", "rejected"] }
+  })
+  .populate("user", "name email avatar isVerified")
+  .select("user capstoneProject")
+  .sort("-capstoneProject.submittedAt");
+
+  res.json(new ApiResponse(200, { capstones: profiles }));
 });
 
 module.exports = {
@@ -391,4 +403,6 @@ module.exports = {
   getUserFullProfile,
   getUserAssessmentResults,
   updateCapstoneStatus,
+  getAnalytics,
+  getCapstones,
 };

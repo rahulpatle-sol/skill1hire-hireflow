@@ -1,4 +1,4 @@
-# HireFlow Backend — API Documentation
+# Skill1 Hire Backend — API Documentation
 
 ## Base URL
 ```
@@ -348,7 +348,7 @@ cp .env.example .env
 ```js
 db.users.insertOne({
   name: "Admin",
-  email: "admin@hireflow.com",
+  email: "admin@skill1hire.com",
   password: "<bcrypt hashed>",
   role: "admin",
   isEmailVerified: true,
@@ -366,7 +366,7 @@ npm run test:coverage  # Tests with coverage report
 ```
 
 ### 5. Postman
-Import `/postman/HireFlow_API.postman_collection.json` into Postman
+Import `/postman/Skill1Hire_API.postman_collection.json` into Postman
 
 ---
 

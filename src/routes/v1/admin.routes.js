@@ -7,13 +7,16 @@ const {
   createAssessment, getAssessments,
   getAllUsers, toggleUserActive,
   adminPostJob, assignAssessment, removeAssignedAssessments, upgradeHRPlan,
-  getUserFullProfile, getUserAssessmentResults, updateCapstoneStatus
+  getUserFullProfile, getUserAssessmentResults, updateCapstoneStatus,
+  getAnalytics, getCapstones
 } = require("../../controllers/admin/admin.controller");
 
 // ── All admin routes protected ────────────────────
 router.use(protect, authorizeRoles("admin")); // ← fix
 
 router.get("/dashboard", getDashboard);
+router.get("/analytics", getAnalytics);
+router.get("/capstones", getCapstones);
 router.get("/users", getAllUsers);
 router.get("/users/:id/profile", getUserFullProfile);
 router.get("/users/:id/assessment-results", getUserAssessmentResults);

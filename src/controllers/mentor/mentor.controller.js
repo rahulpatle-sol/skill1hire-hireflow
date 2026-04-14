@@ -99,16 +99,10 @@ const bookSession = asyncHandler(async (req, res, next) => {
   });
 
   const { enqueueEmail } = require("../../services/queue.service");
+  const { generateSessionRequestedEmail } = require("../../utils/emails/mentor.emails");
   if (enqueueEmail && req.user.email) {
-    const emailHtml = `
-      <h2>Mentor Session Requested</h2>
-      <p>Hello ${req.user.name},</p>
-      <p>You have successfully requested a ${sessionType} session with your mentor.</p>
-      <p><strong>Scheduled At:</strong> ${new Date(scheduledAt).toLocaleString()}</p>
-      <p><strong>Topic:</strong> ${topic}</p>
-      <p>The mentor will review and confirm this session.</p>
-    `;
-    enqueueEmail(req.user.email, "Session Request confirmation", emailHtml).catch(console.error);
+    const html = generateSessionRequestedEmail(req.user.name, sessionType, scheduledAt, topic);
+    enqueueEmail(req.user.email, "Session Request confirmation", html).catch(console.error);
   }
 
   res.status(201).json(new ApiResponse(201, { session }, "Session booked. Complete payment to confirm."));
@@ -159,15 +153,11 @@ const updateSession = asyncHandler(async (req, res, next) => {
   }
 
   const { enqueueEmail } = require("../../services/queue.service");
+  const { generateSessionUpdateEmail } = require("../../utils/emails/mentor.emails");
+
   if (enqueueEmail && session.candidate && session.candidate.email) {
-    const emailHtml = `
-      <h2>Mentor Session Update</h2>
-      <p>Hello,</p>
-      <p>Your mentor session status has been updated to: <strong>${status ? status.toUpperCase() : "UPDATED"}</strong></p>
-      ${meetLink ? `<p><strong>Meeting Link:</strong> <a href="${meetLink}">Join Call</a></p>` : ""}
-      ${notes ? `<p><strong>Mentor Notes:</strong> ${notes}</p>` : ""}
-    `;
-    enqueueEmail(session.candidate.email, "Mentor Session Updated", emailHtml).catch(console.error);
+    const html = generateSessionUpdateEmail(status, meetLink, notes);
+    enqueueEmail(session.candidate.email, "Mentor Session Updated", html).catch(console.error);
   }
 
   res.json(new ApiResponse(200, { session }, "Session updated"));

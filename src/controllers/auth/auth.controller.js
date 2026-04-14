@@ -105,10 +105,18 @@ const login = asyncHandler(async (req, res, next) => {
   if (!isMatch) return next(new ApiError(401, "Invalid email or password"));
 
   if (!user.isActive) return next(new ApiError(403, "Account is deactivated"));
+  if (user.isLocked) return next(new ApiError(403, "Account is locked and scheduled for permanent deletion. Contact support to recover."));
 
   const { accessToken, refreshToken } = generateTokenPair(user._id.toString(), user.role);
 
   await User.findByIdAndUpdate(user._id, { refreshToken, lastLogin: new Date() });
+
+  // Dispath background login success mail
+  const { enqueueEmail } = require("../../services/queue.service");
+  const { generateLoginSuccessEmail } = require("../../utils/emails/auth.emails");
+  if (enqueueEmail) {
+    enqueueEmail(user.email, "Security Alert: New Login", generateLoginSuccessEmail(user.name)).catch(console.error);
+  }
 
   const userResponse = {
     _id: user._id,
@@ -246,6 +254,20 @@ const getMe = asyncHandler(async (req, res) => {
   res.json(new ApiResponse(200, { user: req.user }, "User fetched"));
 });
 
+// @desc    Request Account Soft Deletion (24-Hour Purge Limbo)
+// @route   DELETE /api/v1/auth/delete-account
+// @access  Private
+const deleteAccount = asyncHandler(async (req, res) => {
+  const deletionDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await User.findByIdAndUpdate(req.user._id, {
+    isLocked: true,
+    scheduledDeletionAt: deletionDate,
+    refreshToken: null // Revoke access
+  });
+  
+  res.json(new ApiResponse(200, { scheduledDeletionAt: deletionDate }, "Account locked securely and scheduled for irreversible deletion. Access revoked."));
+});
+
 module.exports = {
   register,
   login,
@@ -256,4 +278,5 @@ module.exports = {
   forgotPassword,
   resetPassword,
   getMe,
+  deleteAccount,
 };
