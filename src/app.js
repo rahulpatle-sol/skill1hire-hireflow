@@ -245,19 +245,30 @@ setInterval(fetchHealth,30000);
 });
 
 // ── Security ──────────────────────────────────────
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(cors({
   origin: process.env.CLIENT_URL || "http://localhost:3000",
   credentials: true,
 }));
 
 // ── Rate Limiter ──────────────────────────────────
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { success: false, message: "Too many requests, try again later" },
+// Very strict rate limiting for authentication (prevent brute force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 mins
+  max: 30, // 30 requests per IP per 15m
+  message: { success: false, message: "Too many auth attempts from this IP, please try again in 15 minutes" },
 });
-app.use("/api", limiter);
+app.use("/api/v1/auth", authLimiter);
+
+// High-throughput global rate limiter suited for NodeCache scalable loads
+const globalLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 2000, // 2000 requests per 5m per IP
+  message: { success: false, message: "API bandwidth exceeded" },
+});
+app.use("/api", globalLimiter);
 
 // ── Body Parsers ──────────────────────────────────
 app.use(express.json({ limit: "10mb" }));

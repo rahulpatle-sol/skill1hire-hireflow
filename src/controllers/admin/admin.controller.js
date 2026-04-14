@@ -62,18 +62,39 @@ const verifyUser = asyncHandler(async (req, res, next) => {
   if (user.role === "candidate") {
     await CandidateProfile.findOneAndUpdate(
       { user: user._id },
-      { isVerified, verifiedBadge: isVerified, verificationStatus, verificationNote: noteText }
+      { isVerified, verifiedBadge: isVerified, verificationStatus, verificationNote: noteText },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
     );
   } else if (user.role === "hr") {
     await HRProfile.findOneAndUpdate(
       { user: user._id },
-      { isVerified, verificationStatus, verificationNote: noteText, verifiedAt: isVerified ? new Date() : undefined }
+      { isVerified, verificationStatus, verificationNote: noteText, verifiedAt: isVerified ? new Date() : undefined },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
     );
   } else if (user.role === "mentor") {
     await MentorProfile.findOneAndUpdate(
       { user: user._id },
-      { isVerified, verificationStatus, verificationNote: noteText, verifiedAt: isVerified ? new Date() : undefined }
+      { isVerified, verificationStatus, verificationNote: noteText, verifiedAt: isVerified ? new Date() : undefined },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+  }
+
+  const { enqueueEmail } = require("../../services/queue.service");
+  if (enqueueEmail && isVerified) {
+    const emailHtml = `
+      <h2>Welcome to HireFlow Premium</h2>
+      <p>Hello ${user.name},</p>
+      <p>Your profile has been fully verified by our administrative team!</p>
+      <p>You can now access exclusive ${user.role} features across the platform.</p>
+    `;
+    enqueueEmail(user.email, "Profile Verified ✅", emailHtml).catch(console.error);
+  } else if (enqueueEmail && !isVerified) {
+    const emailHtml = `
+      <h2>Account Review Update</h2>
+      <p>Hello ${user.name},</p>
+      <p>Your profile verification request was updated. Note: ${noteText || 'Please ensure your profile is complete.'}</p>
+    `;
+    enqueueEmail(user.email, "Verification Status Update", emailHtml).catch(console.error);
   }
 
   res.json(new ApiResponse(200, null, `User ${isVerified ? "verified ✅" : "rejected"} successfully`));
@@ -232,10 +253,22 @@ const assignAssessment = asyncHandler(async (req, res, next) => {
   const profile = await CandidateProfile.findOneAndUpdate(
     { user: req.params.candidateId },
     { assignedAssessments: assessmentIds },
-    { new: true }
-  ).populate("assignedAssessments", "title domain level");
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  ).populate("assignedAssessments", "title domain level").populate("user", "name email");
 
   if (!profile) return next(new ApiError(404, "Candidate profile not found"));
+
+  const { enqueueEmail } = require("../../services/queue.service");
+  if (enqueueEmail && profile.user && profile.user.email) {
+    const emailHtml = `
+      <h2>New Assessments Assigned</h2>
+      <p>Hello ${profile.user.name},</p>
+      <p>The Admin team has assigned you ${assessmentIds.length} new skill assessment(s).</p>
+      <p>Login to your Candidate Dashboard to complete them and boost your HireScore\u2122!</p>
+    `;
+    enqueueEmail(profile.user.email, "New Assessment Assigned", emailHtml).catch(console.error);
+  }
+
   res.json(new ApiResponse(200, { profile }, "Assessments assigned successfully"));
 });
 
@@ -303,6 +336,41 @@ const getUserAssessmentResults = asyncHandler(async (req, res, next) => {
   res.json(new ApiResponse(200, { results, total: results.length }));
 });
 
+// ── Update Capstone Status ─────────────────────────
+// @route PUT /api/v1/admin/users/:id/capstone-status
+const updateCapstoneStatus = asyncHandler(async (req, res, next) => {
+  const { status, feedback } = req.body;
+  if (!["approved", "rejected", "pending"].includes(status)) {
+    return next(new ApiError(400, "Invalid capstone status"));
+  }
+
+  const profile = await CandidateProfile.findOneAndUpdate(
+    { user: req.params.id },
+    { 
+      capstoneStatus: status,
+      "capstoneProject.status": status,
+      "capstoneProject.feedback": feedback 
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  ).populate("user", "name email");
+
+  if (!profile) return next(new ApiError(404, "Candidate profile not found"));
+
+  const { enqueueEmail } = require("../../services/queue.service");
+  if (enqueueEmail && profile.user && profile.user.email) {
+    const emailHtml = `
+      <h2>Capstone Project Status: ${status.toUpperCase()}</h2>
+      <p>Hello ${profile.user.name},</p>
+      <p>Your Capstone Project review is complete.</p>
+      <p><strong>Status:</strong> ${status.toUpperCase()}</p>
+      ${feedback ? `<p><strong>Feedback:</strong> ${feedback}</p>` : ""}
+    `;
+    enqueueEmail(profile.user.email, "Capstone Project Review Results", emailHtml).catch(console.error);
+  }
+
+  res.json(new ApiResponse(200, null, `Capstone project ${status}`));
+});
+
 module.exports = {
   getDashboard,
   verifyUser,
@@ -322,4 +390,5 @@ module.exports = {
   upgradeHRPlan,
   getUserFullProfile,
   getUserAssessmentResults,
+  updateCapstoneStatus,
 };

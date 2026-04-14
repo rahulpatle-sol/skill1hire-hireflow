@@ -161,7 +161,10 @@ const getJobApplications = asyncHandler(async (req, res, next) => {
 
 const updateApplicationStatus = asyncHandler(async (req, res, next) => {
   const { status, hrNotes, rating, interviewDate, interviewLink, interviewType } = req.body;
-  const app = await Application.findById(req.params.id).populate("job");
+  const app = await Application.findById(req.params.id)
+    .populate("job")
+    .populate("candidate", "name email"); // Populate candidate to grab email
+
   if (!app) return next(new ApiError(404, "Application not found"));
   if (app.job.postedBy.toString() !== req.user._id.toString())
     return next(new ApiError(403, "Not authorized"));
@@ -174,6 +177,23 @@ const updateApplicationStatus = asyncHandler(async (req, res, next) => {
   if (interviewType) app.interviewType = interviewType;
   app.updatedBy = req.user._id;
   await app.save();
+
+  // Push notification to queue
+  const { enqueueEmail } = require("../../services/queue.service");
+  if (status && enqueueEmail) {
+    const statusFormatted = status.replace("_", " ").toUpperCase();
+    const emailHtml = `
+      <h2>Application Update: ${app.job.title}</h2>
+      <p>Hello ${app.candidate.name},</p>
+      <p>Your application status is now: <strong>${statusFormatted}</strong></p>
+      ${interviewDate ? `<p><strong>Interview Scheduled:</strong> ${new Date(interviewDate).toLocaleString()}</p>` : ""}
+      ${interviewLink ? `<p><strong>Link:</strong> <a href="${interviewLink}">Join Interview</a></p>` : ""}
+      <p>Log in to your candidate dashboard for more details.</p>
+    `;
+    // Fire and forget
+    enqueueEmail(app.candidate.email, `Application Update: ${app.job.title}`, emailHtml).catch(console.error);
+  }
+
   res.json(new ApiResponse(200, { application: app }, "Application updated"));
 });
 

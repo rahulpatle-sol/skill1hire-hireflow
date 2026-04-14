@@ -98,6 +98,19 @@ const bookSession = asyncHandler(async (req, res, next) => {
     currency: mentorProfile.currency,
   });
 
+  const { enqueueEmail } = require("../../services/queue.service");
+  if (enqueueEmail && req.user.email) {
+    const emailHtml = `
+      <h2>Mentor Session Requested</h2>
+      <p>Hello ${req.user.name},</p>
+      <p>You have successfully requested a ${sessionType} session with your mentor.</p>
+      <p><strong>Scheduled At:</strong> ${new Date(scheduledAt).toLocaleString()}</p>
+      <p><strong>Topic:</strong> ${topic}</p>
+      <p>The mentor will review and confirm this session.</p>
+    `;
+    enqueueEmail(req.user.email, "Session Request confirmation", emailHtml).catch(console.error);
+  }
+
   res.status(201).json(new ApiResponse(201, { session }, "Session booked. Complete payment to confirm."));
 });
 
@@ -130,7 +143,7 @@ const updateSession = asyncHandler(async (req, res, next) => {
   const session = await MentorSession.findOne({
     _id: req.params.id,
     mentor: req.user._id,
-  });
+  }).populate("candidate", "name email");
   if (!session) return next(new ApiError(404, "Session not found"));
 
   if (status) session.status = status;
@@ -138,12 +151,23 @@ const updateSession = asyncHandler(async (req, res, next) => {
   if (notes) session.notes = notes;
   await session.save();
 
-  // Update mentor stats if completed
   if (status === "completed") {
     await MentorProfile.findOneAndUpdate(
       { user: req.user._id },
       { $inc: { totalSessions: 1, totalEarnings: session.amount } }
     );
+  }
+
+  const { enqueueEmail } = require("../../services/queue.service");
+  if (enqueueEmail && session.candidate && session.candidate.email) {
+    const emailHtml = `
+      <h2>Mentor Session Update</h2>
+      <p>Hello,</p>
+      <p>Your mentor session status has been updated to: <strong>${status ? status.toUpperCase() : "UPDATED"}</strong></p>
+      ${meetLink ? `<p><strong>Meeting Link:</strong> <a href="${meetLink}">Join Call</a></p>` : ""}
+      ${notes ? `<p><strong>Mentor Notes:</strong> ${notes}</p>` : ""}
+    `;
+    enqueueEmail(session.candidate.email, "Mentor Session Updated", emailHtml).catch(console.error);
   }
 
   res.json(new ApiResponse(200, { session }, "Session updated"));

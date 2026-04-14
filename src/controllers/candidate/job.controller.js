@@ -94,6 +94,20 @@ const applyToJob = asyncHandler(async (req, res, next) => {
   });
 
   await Job.findByIdAndUpdate(job._id, { $inc: { totalApplications: 1 } });
+
+  // Push confirmation email to background queue
+  const { enqueueEmail } = require("../../services/queue.service");
+  if (enqueueEmail) {
+    const emailHtml = `
+      <h2>Application Received: ${job.title}</h2>
+      <p>Hello ${req.user.name},</p>
+      <p>We've successfully received your application for <strong>${job.title}</strong>.</p>
+      <p>The recruiting team will review your profile shortly. Keep an eye on your candidate dashboard for status updates.</p>
+      <p>Best of luck!</p>
+    `;
+    enqueueEmail(req.user.email, `Application Confirmation: ${job.title}`, emailHtml).catch(console.error);
+  }
+
   res.status(201).json(new ApiResponse(201, { application }, "Application submitted successfully"));
 });
 
