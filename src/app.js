@@ -290,6 +290,7 @@ app.use("/api/v1/mentor",    require("./routes/v1/mentor.routes"));
 app.use("/api/v1/admin",     require("./routes/v1/admin.routes"));
 app.use("/api/v1/jobs",      require("./routes/v1/job.routes"));
 app.use("/api/v1/upload",    require("./routes/v1/upload.routes"));
+app.use("/api/v1/notifications", require("./routes/v1/notification.routes"));
 app.use("/api/v1/meta",      require("./routes/v1/meta.routes")); // public — no auth needed
 
 // ── 404 ───────────────────────────────────────────

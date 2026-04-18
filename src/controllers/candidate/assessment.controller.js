@@ -71,6 +71,7 @@ const getAssessmentById = asyncHandler(async (req, res, next) => {
     questionText: q.questionText,
     options:      q.options,
     marks:        q.marks,
+    type:         q.type,
     _id:          q._id,
   }));
 
@@ -96,17 +97,32 @@ const submitAssessment = asyncHandler(async (req, res, next) => {
   // Auto-grade
   let totalMarks = 0;
   let obtained   = 0;
+  let hasDescriptive = false;
+
   assessment.questions.forEach((q, qi) => {
     totalMarks += q.marks || 1;
     const submitted = answers.find(a => a.questionIndex === qi);
-    if (submitted && submitted.selectedOption === q.correctAnswer) {
-      obtained += q.marks || 1;
+    
+    if (q.type === "descriptive") {
+      hasDescriptive = true;
+      // requires manual HR grading
+    } else {
+      if (submitted && submitted.selectedOption === q.correctAnswer) {
+        obtained += q.marks || 1;
+      }
     }
   });
 
-  const pct       = Math.round((obtained / totalMarks) * 100);
-  const passMarks = assessment.passingMarks || Math.ceil(totalMarks * 0.6);
-  const isPassed  = obtained >= passMarks;
+  let pct = 0;
+  let isPassed = false;
+  let status = "pending_review";
+
+  if (!hasDescriptive) {
+    pct = Math.round((obtained / totalMarks) * 100);
+    const passMarks = assessment.passingMarks || Math.ceil(totalMarks * 0.6);
+    isPassed  = obtained >= passMarks;
+    status = isPassed ? "passed" : "failed";
+  }
 
   // Count previous attempts
   const prevCount = await AssessmentResult.countDocuments({
@@ -117,11 +133,17 @@ const submitAssessment = asyncHandler(async (req, res, next) => {
   const result = await AssessmentResult.create({
     candidate:          req.user._id,
     assessment:         assessment._id,
-    answers:            answers.map(a => ({ questionIndex: a.questionIndex, selectedOption: a.selectedOption })),
+    answers:            answers.map(a => ({
+      questionIndex: a.questionIndex,
+      selectedOption: a.selectedOption,
+      answerText: a.answerText,
+      answerFileUrl: a.answerFileUrl
+    })),
     totalMarksObtained: obtained,
     totalMarks,
     percentageScore:    pct,
     isPassed,
+    status,
     timeTakenMinutes,
     attemptNumber:      prevCount + 1,
   });

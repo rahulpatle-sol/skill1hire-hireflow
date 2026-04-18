@@ -62,10 +62,18 @@ const register = asyncHandler(async (req, res, next) => {
   // Save refresh token
   await User.findByIdAndUpdate(user._id, { refreshToken }, { new: true });
 
-  // Send verification email (non-blocking, best effort)
+  // Send verification email (non-critical)
   sendVerificationEmail(email, name, verifyToken).catch((err) =>
     console.error("📧 Email send failed (non-critical):", err.message)
   );
+  
+  // 🔥 [DEV OVERRIDE] Due to Resend free tier restrictions, output the token locally so the user isn't stuck
+  console.log(`\n===========================================`);
+  console.log(`🔑 DEV OVERRIDE (RESEND TIER BYPASS)`);
+  console.log(`User: ${email}`);
+  console.log(`Verification Token: ${verifyToken}`);
+  console.log(`Verification URL: http://localhost:3000/verify-email?token=${verifyToken}`);
+  console.log(`===========================================\n`);
 
   // Build clean response (avoid select:false field exposure)
   const userResponse = {

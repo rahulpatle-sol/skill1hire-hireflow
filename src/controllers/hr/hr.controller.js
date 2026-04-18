@@ -28,6 +28,12 @@ const postJob = asyncHandler(async (req, res, next) => {
   const hrProfile = await HRProfile.findOne({ user: req.user._id });
   if (!hrProfile) return next(new ApiError(404, "HR profile not found"));
 
+  // Enforce job posting limits
+  const jobLimit = hrProfile.getJobPostLimit();
+  if (hrProfile.totalJobsPosted >= jobLimit) {
+    return next(new ApiError(403, `You've reached the ${hrProfile.plan} plan limit (${jobLimit} jobs). Upgrade to post more jobs.`));
+  }
+
   const slug = createUniqueSlug(req.body.title);
   
   let domainId = req.body.domain;
@@ -73,6 +79,28 @@ const postJob = asyncHandler(async (req, res, next) => {
   if (enqueueEmail && req.user.email) {
     enqueueEmail(req.user.email, "Job Successfully Posted on Skill1 Hire", generateHRJobPostedEmail(hrProfile.companyName || req.user.name, job.title)).catch(console.error);
   }
+
+  // Broadcast new job alert to all verified candidates (async, non-blocking)
+  if (enqueueEmail) {
+    const User = require("../../models/User.model");
+    const { generateNewJobAlertEmail } = require("../../utils/emails/candidate.emails");
+    User.find({ role: "candidate", isVerified: true, isLocked: { $ne: true } }).select("name email").lean()
+      .then(candidates => {
+        candidates.forEach(c => {
+          enqueueEmail(c.email, `New Job: ${job.title}`, generateNewJobAlertEmail(c.name, job.title, job.company || hrProfile.companyName)).catch(console.error);
+        });
+      })
+      .catch(console.error);
+  }
+
+  // Real-time notification to all candidates
+  const { notifyRole } = require("../../services/notification.service");
+  notifyRole("candidate", {
+    type: "new_job",
+    title: "New Job Available!",
+    message: `${job.title} at ${job.company || hrProfile.companyName}`,
+    link: `/jobs/${job.slug || job._id}`,
+  }).catch(console.error);
 
   res.status(201).json(new ApiResponse(201, { job }, "Job posted successfully"));
 });

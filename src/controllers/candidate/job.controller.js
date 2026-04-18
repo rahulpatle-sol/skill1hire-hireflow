@@ -102,6 +102,27 @@ const applyToJob = asyncHandler(async (req, res, next) => {
   if (enqueueEmail) {
     const html = generateApplicationReceivedEmail(req.user.name, job.title);
     enqueueEmail(req.user.email, `Application Confirmation: ${job.title}`, html).catch(console.error);
+
+    // Notify the HR who posted this job
+    const User = require("../../models/User.model");
+    const { generateNewApplicationNotifyHR } = require("../../utils/emails/hr.emails");
+    if (job.postedBy) {
+      User.findById(job.postedBy).select("name email").lean()
+        .then(hr => {
+          if (hr && hr.email) {
+            enqueueEmail(hr.email, `New Application: ${job.title}`, generateNewApplicationNotifyHR(hr.name, req.user.name, job.title)).catch(console.error);
+            // Real-time notification to HR
+            const { sendNotification } = require("../../services/notification.service");
+            sendNotification(hr._id, {
+              type: "new_application",
+              title: "New Application!",
+              message: `${req.user.name} applied for ${job.title}`,
+              link: `/hr/jobs/${job._id}/applications`,
+            });
+          }
+        })
+        .catch(console.error);
+    }
   }
 
   res.status(201).json(new ApiResponse(201, { application }, "Application submitted successfully"));

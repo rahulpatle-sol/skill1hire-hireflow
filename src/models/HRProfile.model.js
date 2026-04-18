@@ -68,6 +68,11 @@ hrProfileSchema.methods.getCandidateLimit = function () {
   return limits[this.plan] ?? 10;
 };
 
+hrProfileSchema.methods.getJobPostLimit = function () {
+  const limits = { free: 3, pro: 25, enterprise: Infinity };
+  return limits[this.plan] ?? 3;
+};
+
 // user already indexed via unique:true
 hrProfileSchema.index({ isVerified: 1 });
 hrProfileSchema.index({ companyName: "text" });

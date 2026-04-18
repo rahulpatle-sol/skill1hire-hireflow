@@ -4,7 +4,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async ({ to, subject, html }) => {
   const { data, error } = await resend.emails.send({
-    from: "Skill1 Hire <noreply@rahulpatle.xyz>", // ya apna domain verify kara ho to: noreply@yourdomain.com
+    from: "Skill1 Hire <onboarding@resend.dev>", // Required for Resend free tier if domain is unverified
     to,
     subject,
     html,

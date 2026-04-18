@@ -8,7 +8,7 @@ const {
   getAllUsers, toggleUserActive,
   adminPostJob, assignAssessment, removeAssignedAssessments, upgradeHRPlan,
   getUserFullProfile, getUserAssessmentResults, updateCapstoneStatus,
-  getAnalytics, getCapstones
+  getAnalytics, getCapstones, getAllSessions
 } = require("../../controllers/admin/admin.controller");
 
 // ── All admin routes protected ────────────────────
@@ -35,5 +35,6 @@ router.put("/assign-assessment/:candidateId", assignAssessment);
 router.delete("/assign-assessment/:candidateId", removeAssignedAssessments);
 router.put("/hr-plan/:userId", upgradeHRPlan);
 router.post("/jobs", adminPostJob);
+router.get("/sessions", getAllSessions);
 
 module.exports = router;

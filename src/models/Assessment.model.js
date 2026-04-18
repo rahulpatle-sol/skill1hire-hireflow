@@ -18,9 +18,10 @@ const assessmentSchema = new mongoose.Schema(
     },
     questions: [
       {
+        type: { type: String, enum: ["mcq", "descriptive"], default: "mcq" },
         questionText: { type: String, required: true },
         options: [{ type: String }],
-        correctAnswer: { type: Number, required: true }, // index of correct option
+        correctAnswer: { type: Number }, // index of correct option (optional for descriptive)
         explanation: { type: String, default: "" },
         marks: { type: Number, default: 1 },
       },
@@ -55,6 +56,8 @@ const assessmentResultSchema = new mongoose.Schema(
       {
         questionIndex: Number,
         selectedOption: Number,
+        answerText: String, // For descriptive questions
+        answerFileUrl: String, // For descriptive questions drag-drop uploads
         isCorrect: Boolean,
         marksObtained: Number,
       },
@@ -63,6 +66,7 @@ const assessmentResultSchema = new mongoose.Schema(
     totalMarks: { type: Number, default: 0 },
     percentageScore: { type: Number, default: 0 },
     isPassed: { type: Boolean, default: false },
+    status: { type: String, enum: ["passed", "failed", "pending_review"], default: "pending_review" },
     timeTakenMinutes: { type: Number, default: 0 },
     attemptNumber: { type: Number, default: 1 },
     completedAt: { type: Date, default: Date.now },

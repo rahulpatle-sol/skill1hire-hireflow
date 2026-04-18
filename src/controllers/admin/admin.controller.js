@@ -382,6 +382,18 @@ const getCapstones = asyncHandler(async (req, res) => {
   res.json(new ApiResponse(200, { capstones: profiles }));
 });
 
+// ── Get All Sessions (Admin) ──────────────────────
+const getAllSessions = asyncHandler(async (req, res) => {
+  const MentorSession = require("../../models/MentorSession.model");
+  const sessions = await MentorSession.find()
+    .populate("mentor", "name email avatar")
+    .populate("candidate", "name email avatar")
+    .sort("-createdAt")
+    .limit(100)
+    .lean();
+  res.json(new ApiResponse(200, { sessions }, "Sessions fetched"));
+});
+
 module.exports = {
   getDashboard,
   verifyUser,
@@ -404,4 +416,5 @@ module.exports = {
   updateCapstoneStatus,
   getAnalytics,
   getCapstones,
+  getAllSessions,
 };

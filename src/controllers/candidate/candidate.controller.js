@@ -50,6 +50,12 @@ const updateProfile = asyncHandler(async (req, res, next) => {
   profile.profileCompleteness = calculateCompleteness(profile);
   await profile.save();
 
+  // Sync avatar to User model so it appears everywhere
+  if (avatarUrl !== undefined) {
+    const User = require("../../models/User.model");
+    await User.findByIdAndUpdate(req.user._id, { avatar: avatarUrl });
+  }
+
   res.json(new ApiResponse(200, { profile }, "Profile updated successfully"));
 });
 

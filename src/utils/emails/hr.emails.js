@@ -32,7 +32,21 @@ const generateHRJobPostedEmail = (companyName, jobTitle) => `
   </div>
 `;
 
+const generateNewApplicationNotifyHR = (hrName, candidateName, jobTitle) => `
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+    <h2 style="color: #6366f1;">New Application Received!</h2>
+    <p>Hello ${hrName},</p>
+    <p><strong>${candidateName}</strong> has applied for your job posting: <strong>${jobTitle}</strong>.</p>
+    <p>Log into your HR dashboard to review the application and take further action.</p>
+    <br>
+    <div style="background: #f8fafc; padding: 15px; border-radius: 5px; font-size: 14px;">
+      <b>Tip:</b> Respond quickly to top candidates before they get picked by others!
+    </div>
+  </div>
+`;
+
 module.exports = {
   generateCandidateStatusUpdateEmail,
   generateHRJobPostedEmail,
+  generateNewApplicationNotifyHR,
 };
