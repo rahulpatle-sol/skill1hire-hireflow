@@ -5,6 +5,7 @@ const MentorProfile = require("../../models/MentorProfile.model");
 const { Domain, Skill } = require("../../models/Domain.model");
 const { Assessment } = require("../../models/Assessment.model");
 const Job = require("../../models/Job.model");
+const Application = require("../../models/Application.model");
 const ApiError = require("../../utils/ApiError");
 const ApiResponse = require("../../utils/ApiResponse");
 const asyncHandler = require("../../utils/asyncHandler");
@@ -355,13 +356,11 @@ const updateCapstoneStatus = asyncHandler(async (req, res, next) => {
 // ── Get Analytics ───────────────────────────────
 // @route GET /api/v1/admin/analytics
 const getAnalytics = asyncHandler(async (req, res) => {
-  const JobApplication = require("../../models/JobApplication.model");
-  
-  const totalJobs = await Job.countDocuments();
-  const totalHires = await JobApplication.countDocuments({ status: "hired" });
-  const totalApplications = await JobApplication.countDocuments();
+  const totalJobs = await Job.countDocuments({ status: "active" });
+  const totalHires = await Application.countDocuments({ status: "hired" });
+  const totalApplications = await Application.countDocuments();
 
-  const recentHires = await JobApplication.find({ status: "hired" })
+  const recentHires = await Application.find({ status: "hired" })
     .populate("candidate", "name email avatar")
     .populate("job", "title companyName")
     .sort("-updatedAt")

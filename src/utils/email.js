@@ -4,7 +4,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async ({ to, subject, html }) => {
   const { data, error } = await resend.emails.send({
-    from: "HireFlow <noreply@rahulpatle.xyz>", // ya apna domain verify kara ho to: noreply@yourdomain.com
+    from: "Skill1 Hire <noreply@rahulpatle.xyz>", // ya apna domain verify kara ho to: noreply@yourdomain.com
     to,
     subject,
     html,
@@ -18,7 +18,7 @@ const sendVerificationEmail = async (email, name, token) => {
   const url = `${process.env.CLIENT_URL}/verify-email?token=${token}`;
   await sendEmail({
     to: email,
-    subject: "Verify your HireFlow account",
+    subject: "Verify your Skill1 Hire account",
     html: `
       <h2>Hello ${name}!</h2>
       <p>Please verify your email by clicking the link below:</p>
@@ -32,7 +32,7 @@ const sendPasswordResetEmail = async (email, name, token) => {
   const url = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
   await sendEmail({
     to: email,
-    subject: "Reset your HireFlow password",
+    subject: "Reset your Skill1 Hire password",
     html: `
       <h2>Hello ${name}!</h2>
       <p>Click the link below to reset your password:</p>
