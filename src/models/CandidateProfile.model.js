@@ -22,7 +22,7 @@ const educationSchema = new mongoose.Schema(
   },
   { _id: false }
 );
-
+//  ad in backend also  ui 
 const experienceSchema = new mongoose.Schema(
   {
     company:     { type: String, required: true },
@@ -31,6 +31,18 @@ const experienceSchema = new mongoose.Schema(
     endDate:     { type: Date },
     isCurrent:   { type: Boolean, default: false },
     description: { type: String },
+  },
+  { _id: false }
+);
+
+const certificationSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    issuer: { type: String, required: true },
+    issueDate: { type: Date },
+    expirationDate: { type: Date },
+    credentialId: { type: String },
+    credentialUrl: { type: String },
   },
   { _id: false }
 );
@@ -59,6 +71,7 @@ const candidateProfileSchema = new mongoose.Schema(
     socialLinks: { type: socialLinksSchema, default: () => ({}) },
     education:   [educationSchema],
     experience:  [experienceSchema],
+    certifications: [certificationSchema],
 
     // ── File Uploads ─────────────────────────────
     resumeUrl: { type: String, default: "" },   // PDF resume URL
@@ -92,11 +105,14 @@ const candidateProfileSchema = new mongoose.Schema(
       },
     },
 
-    // ── Scores ────────────────────────────────────
+    // ── Scores & Streaks ─────────────────────────
     overallScore:       { type: Number, default: 0, min: 0, max: 100 },
     assessmentScore:    { type: Number, default: 0, min: 0, max: 100 },
     profileCompleteness:{ type: Number, default: 0, min: 0, max: 100 },
     totalAssessmentsPassed: { type: Number, default: 0 },
+    totalAssignmentsCompleted: { type: Number, default: 0 },
+    streakDays:         { type: Number, default: 0 },
+    streakCommits:      { type: Number, default: 0 },
 
     isProfilePublic: { type: Boolean, default: true },
   },

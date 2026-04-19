@@ -208,6 +208,39 @@ const getMySessions = asyncHandler(async (req, res, next) => {
   res.json(new ApiResponse(200, { sessions }, "Sessions fetched successfully"));
 });
 
+// @desc    List all candidates (public — for mentor chat search)
+// @route   GET /api/v1/candidate
+// @access  Public
+const getAllCandidates = asyncHandler(async (req, res) => {
+  const { search, page = 1, limit = 20 } = req.query;
+  const filter = {};
+
+  // If search query, find matching User IDs first
+  let userIds = null;
+  if (search && search.trim()) {
+    const matchingUsers = await User.find({
+      role: "candidate",
+      name: { $regex: search.trim(), $options: "i" },
+    }).select("_id").lean();
+    userIds = matchingUsers.map((u) => u._id);
+    filter.user = { $in: userIds };
+  }
+
+  const skip = (page - 1) * limit;
+  const [candidates, total] = await Promise.all([
+    CandidateProfile.find(filter)
+      .populate("user", "name avatar email")
+      .populate("skills", "name")
+      .populate("domains", "name")
+      .sort("-createdAt")
+      .skip(skip)
+      .limit(Number(limit)),
+    CandidateProfile.countDocuments(filter),
+  ]);
+
+  res.json(new ApiResponse(200, { candidates, total, page: Number(page), pages: Math.ceil(total / limit) }));
+});
+
 module.exports = {
   getMyProfile,
   updateProfile,
@@ -217,4 +250,6 @@ module.exports = {
   submitCapstone,
   getScorecard,
   getMySessions,
+  getAllCandidates,
 };
+

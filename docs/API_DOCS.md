@@ -102,12 +102,14 @@ All routes require `Authorization: Bearer <token>` with role = `candidate`
 ```json
 {
   "answers": [
-    { "questionIndex": 0, "selectedOption": 2 },
-    { "questionIndex": 1, "selectedOption": 0 }
+    { "questionIndex": 0, "selectedOption": 2 }, // MCQ
+    { "questionIndex": 1, "answerText": "This is a descriptive answer...", "answerFileUrl": "..." } // Descriptive
   ],
   "timeTakenMinutes": 18
 }
 ```
+> [!NOTE]
+> For Descriptive questions, `selectedOption` should be omitted. `answerFileUrl` is optional and supports Cloudinary uploads.
 
 ### Submit Capstone Body
 ```json
@@ -240,6 +242,50 @@ Application Status Flow: `applied → shortlisted → interview_scheduled → in
 
 ---
 
+## 💬 Chat Routes — `/api/v1/chat` & `/api/v1/message`
+
+All routes require `Authorization: Bearer <token>`
+
+| Method | Route | Access | Description |
+|--------|-------|--------|-------------|
+| POST | `/chat` | Private | Access or create a 1-on-1 chat with a user |
+| GET | `/chat` | Private | Fetch all active chats for the current user |
+| POST | `/message` | Private | Send a new message (supports text/file) |
+| GET | `/message/:chatId` | Private | Get full message history for a specific chat |
+
+### Access Chat Body
+```json
+{
+  "userId": "remote_user_id"
+}
+```
+
+### Send Message Body
+```json
+{
+  "chatId": "chat_id",
+  "text": "Hello mentor!",
+  "fileUrl": "https://cloudinary.com/..." // Optional attachment
+}
+```
+
+---
+
+## 🔌 WebSocket Events
+The Skill1 Hire platform uses **Socket.io** for real-time interactivity.
+
+**Base URL:** `http://localhost:5000` (Directly on server root)
+
+### 📥 Client-to-Server (Emitters)
+- `join_user(userId)`: Joins a private room for global notifications.
+- `join_chat(chatId)`: Joins a specific chat room for incoming messages.
+
+### 📤 Server-to-Client (Listeners)
+- `notification`: Triggered for unread messages (Instagram-style).
+- `new_message`: Triggered for live messages within an active chat room.
+
+---
+
 ## 🛡️ Admin Routes — `/api/v1/admin`
 
 All routes require `Authorization: Bearer <token>` with role = `admin`
@@ -365,7 +411,12 @@ npm test           # Run all tests
 npm run test:coverage  # Tests with coverage report
 ```
 
-### 5. Postman
+### 5. Local Email Bypass (Developer Mode)
+If using the Resend free tier, emails are only sent to the registered owner.
+For local testing, the `emailVerifyToken` is **logged to the terminal** whenever a new user registers.
+Check the console output for: `🔑 DEV OVERRIDE (RESEND TIER BYPASS)`
+
+### 6. Postman
 Import `/postman/Skill1Hire_API.postman_collection.json` into Postman
 
 ---
@@ -397,14 +448,18 @@ src/
 │   ├── Application.model.js
 │   ├── Assessment.model.js   ← Assessment + AssessmentResult
 │   ├── Domain.model.js       ← Domain + Skill
-│   └── MentorSession.model.js
+│   ├── MentorSession.model.js
+│   ├── Chat.model.js         ← Chat thread tracking
+│   └── Message.model.js      ← Individual message payloads
 ├── routes/v1/
 │   ├── auth.routes.js
 │   ├── candidate.routes.js
 │   ├── hr.routes.js
 │   ├── mentor.routes.js
 │   ├── admin.routes.js
-│   └── job.routes.js
+│   ├── job.routes.js
+│   ├── chat.routes.js        ← New Chat endpoints
+│   └── message.routes.js     ← New Message endpoints
 ├── utils/
 │   ├── ApiError.js
 │   ├── ApiResponse.js
@@ -426,4 +481,5 @@ src/
 4. **Job application** — If `requiresVerification: true` on a job, only candidates with blue tick can apply
 5. **Unique public profiles** — Every candidate gets a `/profile/{slug}` like LinkedIn
 6. **Duplicate application prevention** — MongoDB unique compound index on `{job, candidate}`
-7. **Assessment scoring** — Auto-graded, 60% to pass, score averaged into overall profile score
+7. **Assessment scoring** — Auto-graded for MCQ (60% pass). Descriptive assessments are set to `pending_review` for manual HR evaluation.
+8. **Real-time Notifications** — Socket.io powers live chat and Instagram-style unread badges.

@@ -6,6 +6,7 @@ const { Domain, Skill } = require("../../models/Domain.model");
 const { Assessment } = require("../../models/Assessment.model");
 const Job = require("../../models/Job.model");
 const Application = require("../../models/Application.model");
+const Assignment = require("../../models/Assignment.model");
 const ApiError = require("../../utils/ApiError");
 const ApiResponse = require("../../utils/ApiResponse");
 const asyncHandler = require("../../utils/asyncHandler");
@@ -356,9 +357,29 @@ const updateCapstoneStatus = asyncHandler(async (req, res, next) => {
 // ── Get Analytics ───────────────────────────────
 // @route GET /api/v1/admin/analytics
 const getAnalytics = asyncHandler(async (req, res) => {
-  const totalJobs = await Job.countDocuments({ status: "active" });
-  const totalHires = await Application.countDocuments({ status: "hired" });
-  const totalApplications = await Application.countDocuments();
+  const { AssessmentResult } = require("../../models/Assessment.model");
+
+  const [
+    totalJobs,
+    totalHires, // Selected 
+    totalApplications,
+    shortlisted,
+    rejected,
+    interviewed,
+    ongoingInterview,
+    assessmentsCompleted,
+    assignmentsGiven
+  ] = await Promise.all([
+    Job.countDocuments({ status: "active" }),
+    Application.countDocuments({ status: "hired" }),
+    Application.countDocuments(),
+    Application.countDocuments({ status: "shortlisted" }),
+    Application.countDocuments({ status: "rejected" }),
+    Application.countDocuments({ status: "interview_done" }),
+    Application.countDocuments({ status: "interview_scheduled" }),
+    AssessmentResult.countDocuments(),
+    Assignment.countDocuments()
+  ]);
 
   const recentHires = await Application.find({ status: "hired" })
     .populate("candidate", "name email avatar")
@@ -366,7 +387,18 @@ const getAnalytics = asyncHandler(async (req, res) => {
     .sort("-updatedAt")
     .limit(10);
 
-  res.json(new ApiResponse(200, { totalJobs, totalHires, totalApplications, recentHires }));
+  res.json(new ApiResponse(200, {
+    totalJobs,
+    totalHires,
+    totalApplications,
+    shortlisted,
+    rejected,
+    interviewed,
+    ongoingInterview,
+    assessmentsCompleted,
+    assignmentsGiven,
+    recentHires
+  }));
 });
 
 // ── Get All Capstones ─────────────────────────────

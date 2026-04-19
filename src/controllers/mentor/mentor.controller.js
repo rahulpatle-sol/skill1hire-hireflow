@@ -42,10 +42,20 @@ const updateMentorProfile = asyncHandler(async (req, res, next) => {
 // @route   GET /api/v1/mentor
 // @access  Public
 const getAllMentors = asyncHandler(async (req, res) => {
-  const { domain, skill, page = 1, limit = 12 } = req.query;
-  const filter = { isVerified: true };
+  const { domain, skill, search, page = 1, limit = 12 } = req.query;
+  const filter = {};
   if (domain) filter.domains = domain;
   if (skill) filter.expertise = skill;
+
+  // If search query, find matching User IDs first
+  if (search && search.trim()) {
+    const User = require("../../models/User.model");
+    const matchingUsers = await User.find({
+      role: "mentor",
+      name: { $regex: search.trim(), $options: "i" },
+    }).select("_id").lean();
+    filter.user = { $in: matchingUsers.map((u) => u._id) };
+  }
 
   const skip = (page - 1) * limit;
   const [mentors, total] = await Promise.all([

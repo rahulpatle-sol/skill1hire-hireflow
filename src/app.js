@@ -291,7 +291,9 @@ app.use("/api/v1/admin",     require("./routes/v1/admin.routes"));
 app.use("/api/v1/jobs",      require("./routes/v1/job.routes"));
 app.use("/api/v1/upload",    require("./routes/v1/upload.routes"));
 app.use("/api/v1/notifications", require("./routes/v1/notification.routes"));
-app.use("/api/v1/meta",      require("./routes/v1/meta.routes")); // public — no auth needed
+app.use("/api/v1/chat",          require("./routes/v1/chat.routes"));
+app.use("/api/v1/message",       require("./routes/v1/message.routes"));
+app.use("/api/v1/meta",          require("./routes/v1/meta.routes")); // public — no auth needed
 
 // ── 404 ───────────────────────────────────────────
 app.use((req, res) => {

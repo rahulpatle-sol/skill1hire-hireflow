@@ -634,6 +634,51 @@
       ]
     },
     {
+      "name": "💬 Communication",
+      "item": [
+        {
+          "name": "Create or Access Private Chat",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/chat",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"userId\": \"target_user_id_here\"\n}" }
+          }
+        },
+        {
+          "name": "Get All My Chats",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/chat",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/message",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"chatId\": \"chat_id_here\",\n  \"text\": \"Hello there!\",\n  \"fileUrl\": \"\"\n}" }
+          }
+        },
+        {
+          "name": "Get Message History",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/message/:chatId",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ACCESS_TOKEN}}" }]
+          }
+        }
+      ]
+    },
+    {
       "name": "🔍 Health",
       "item": [
         {

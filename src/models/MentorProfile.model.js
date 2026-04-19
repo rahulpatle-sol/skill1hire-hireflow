@@ -1,5 +1,41 @@
 const mongoose = require("mongoose");
 
+const educationSchema = new mongoose.Schema(
+  {
+    institution:  { type: String, required: true },
+    degree:       { type: String, required: true },
+    fieldOfStudy: { type: String },
+    startYear:    { type: Number },
+    endYear:      { type: Number },
+    grade:        { type: String },
+  },
+  { _id: false }
+);
+
+const experienceSchema = new mongoose.Schema(
+  {
+    company:     { type: String, required: true },
+    role:        { type: String, required: true },
+    startDate:   { type: Date },
+    endDate:     { type: Date },
+    isCurrent:   { type: Boolean, default: false },
+    description: { type: String },
+  },
+  { _id: false }
+);
+
+const certificationSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    issuer: { type: String, required: true },
+    issueDate: { type: Date },
+    expirationDate: { type: Date },
+    credentialId: { type: String },
+    credentialUrl: { type: String },
+  },
+  { _id: false }
+);
+
 const mentorProfileSchema = new mongoose.Schema(
   {
     user: {
@@ -20,6 +56,9 @@ const mentorProfileSchema = new mongoose.Schema(
     websiteUrl: { type: String, default: "" },
     avatarUrl: { type: String, default: "" },
     languages: [{ type: String }],
+    education: [educationSchema],
+    experience: [experienceSchema],
+    certifications: [certificationSchema],
 
     // Pricing
     hourlyRate: { type: Number, default: 0 },

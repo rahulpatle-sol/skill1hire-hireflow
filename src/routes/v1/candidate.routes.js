@@ -2,7 +2,8 @@ const router = require("express").Router();
 const { protect, authorizeRoles, isVerified } = require("../../middleware/auth.middleware");
 const {
   getMyProfile, updateProfile, updateSkills,
-  updateSocialLinks, getPublicProfile, submitCapstone, getScorecard, getMySessions
+  updateSocialLinks, getPublicProfile, submitCapstone, getScorecard, getMySessions,
+  getAllCandidates,
 } = require("../../controllers/candidate/candidate.controller");
 const {
   getMyAssessments, getAssessmentById, submitAssessment,
@@ -13,6 +14,7 @@ const {
 
 // Public
 router.get("/public/:slug", getPublicProfile);
+router.get("/", getAllCandidates);
 
 // Protected - any candidate
 router.use(protect, authorizeRoles("candidate"));
