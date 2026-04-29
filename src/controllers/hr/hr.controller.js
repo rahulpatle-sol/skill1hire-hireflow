@@ -16,12 +16,80 @@ const getHRProfile = asyncHandler(async (req, res, next) => {
 });
 
 const updateHRProfile = asyncHandler(async (req, res, next) => {
-  const allowed = ["companyName","companyWebsite","companyLogo","companySize","industry","designation","phone","location","bio"];
+  const allowed = [
+    "companyName", "companyWebsite", "companyLogo", "companySize",
+    "industry", "designation", "phone", "location", "bio",
+    // New LinkedIn-style fields
+    "headline", "summary", "skills", "socialLinks",
+  ];
   const updates = {};
   allowed.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
   const profile = await HRProfile.findOneAndUpdate({ user: req.user._id }, updates, { new: true, runValidators: true });
   if (!profile) return next(new ApiError(404, "HR profile not found"));
   res.json(new ApiResponse(200, { profile }, "Profile updated"));
+});
+
+// ── Experience CRUD ───────────────────────────────
+const addHRExperience = asyncHandler(async (req, res, next) => {
+  const profile = await HRProfile.findOneAndUpdate(
+    { user: req.user._id },
+    { $push: { experience: req.body } },
+    { new: true, runValidators: true }
+  );
+  if (!profile) return next(new ApiError(404, "HR profile not found"));
+  res.json(new ApiResponse(200, { profile }, "Experience added"));
+});
+
+const deleteHRExperience = asyncHandler(async (req, res, next) => {
+  const profile = await HRProfile.findOneAndUpdate(
+    { user: req.user._id },
+    { $pull: { experience: { _id: req.params.expId } } },
+    { new: true }
+  );
+  if (!profile) return next(new ApiError(404, "HR profile not found"));
+  res.json(new ApiResponse(200, { profile }, "Experience removed"));
+});
+
+// ── Education CRUD ────────────────────────────────
+const addHREducation = asyncHandler(async (req, res, next) => {
+  const profile = await HRProfile.findOneAndUpdate(
+    { user: req.user._id },
+    { $push: { education: req.body } },
+    { new: true, runValidators: true }
+  );
+  if (!profile) return next(new ApiError(404, "HR profile not found"));
+  res.json(new ApiResponse(200, { profile }, "Education added"));
+});
+
+const deleteHREducation = asyncHandler(async (req, res, next) => {
+  const profile = await HRProfile.findOneAndUpdate(
+    { user: req.user._id },
+    { $pull: { education: { _id: req.params.eduId } } },
+    { new: true }
+  );
+  if (!profile) return next(new ApiError(404, "HR profile not found"));
+  res.json(new ApiResponse(200, { profile }, "Education removed"));
+});
+
+// ── Certifications CRUD ───────────────────────────
+const addHRCertification = asyncHandler(async (req, res, next) => {
+  const profile = await HRProfile.findOneAndUpdate(
+    { user: req.user._id },
+    { $push: { certifications: req.body } },
+    { new: true, runValidators: true }
+  );
+  if (!profile) return next(new ApiError(404, "HR profile not found"));
+  res.json(new ApiResponse(200, { profile }, "Certification added"));
+});
+
+const deleteHRCertification = asyncHandler(async (req, res, next) => {
+  const profile = await HRProfile.findOneAndUpdate(
+    { user: req.user._id },
+    { $pull: { certifications: { _id: req.params.certId } } },
+    { new: true }
+  );
+  if (!profile) return next(new ApiError(404, "HR profile not found"));
+  res.json(new ApiResponse(200, { profile }, "Certification removed"));
 });
 
 const postJob = asyncHandler(async (req, res, next) => {
@@ -244,4 +312,7 @@ const upgradeHRPlan = asyncHandler(async (req, res, next) => {
 module.exports = {
   getHRProfile, updateHRProfile, postJob, getMyJobs,
   updateJob, getJobApplications, updateApplicationStatus, upgradeHRPlan,
+  addHRExperience, deleteHRExperience,
+  addHREducation, deleteHREducation,
+  addHRCertification, deleteHRCertification,
 };

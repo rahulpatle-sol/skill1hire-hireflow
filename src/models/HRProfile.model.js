@@ -8,7 +8,6 @@ const hrProfileSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    // LinkedIn-style public URL slug
     publicSlug: { type: String, unique: true, sparse: true },
 
     companyName: {
@@ -30,9 +29,6 @@ const hrProfileSchema = new mongoose.Schema(
     bio:         { type: String, maxlength: 500, default: "" },
 
     // ── Subscription / Plan ───────────────────────
-    // free     → 10 candidates per job
-    // pro      → 25 candidates per job
-    // enterprise → unlimited
     plan: {
       type: String,
       enum: ["free", "pro", "enterprise"],
@@ -40,9 +36,7 @@ const hrProfileSchema = new mongoose.Schema(
     },
     planSince:     { type: Date },
     planExpiresAt: { type: Date },
-
-    // Legacy field kept for backward compat
-    isPremium: { type: Boolean, default: false },
+    isPremium:   { type: Boolean, default: false },
     premiumSince: { type: Date },
 
     // ── Verification ──────────────────────────────
@@ -55,6 +49,51 @@ const hrProfileSchema = new mongoose.Schema(
     verificationNote: { type: String, default: "" },
     verifiedAt:       { type: Date },
 
+    // ── LinkedIn-style Personal Profile ───────────
+    headline:  { type: String, maxlength: 220, default: "" },
+    summary:   { type: String, maxlength: 2000, default: "" },
+    skills:    [{ type: String }],
+
+    socialLinks: {
+      linkedin:  { type: String, default: "" },
+      twitter:   { type: String, default: "" },
+      github:    { type: String, default: "" },
+      portfolio: { type: String, default: "" },
+    },
+
+    experience: [
+      {
+        company:     { type: String, required: true },
+        role:        { type: String, required: true },
+        startDate:   { type: Date },
+        endDate:     { type: Date },
+        isCurrent:   { type: Boolean, default: false },
+        description: { type: String, default: "" },
+        _id: false,
+      },
+    ],
+
+    education: [
+      {
+        institution:  { type: String, required: true },
+        degree:       { type: String },
+        fieldOfStudy: { type: String },
+        startYear:    { type: Number },
+        endYear:      { type: Number },
+        _id: false,
+      },
+    ],
+
+    certifications: [
+      {
+        name:          { type: String, required: true },
+        issuer:        { type: String },
+        issueDate:     { type: Date },
+        credentialUrl: { type: String },
+        _id: false,
+      },
+    ],
+
     // ── Stats ─────────────────────────────────────
     totalJobsPosted: { type: Number, default: 0 },
     totalHires:      { type: Number, default: 0 },
@@ -62,7 +101,6 @@ const hrProfileSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ── Plan limits helper ────────────────────────────
 hrProfileSchema.methods.getCandidateLimit = function () {
   const limits = { free: 10, pro: 25, enterprise: Infinity };
   return limits[this.plan] ?? 10;
@@ -73,7 +111,6 @@ hrProfileSchema.methods.getJobPostLimit = function () {
   return limits[this.plan] ?? 3;
 };
 
-// user already indexed via unique:true
 hrProfileSchema.index({ isVerified: 1 });
 hrProfileSchema.index({ companyName: "text" });
 

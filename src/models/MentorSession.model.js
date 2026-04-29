@@ -10,8 +10,10 @@ const mentorSessionSchema = new mongoose.Schema(
     candidate: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      // Made optional for group support
     },
+    isGroup: { type: Boolean, default: false },
+    attendees: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     sessionType: {
       type: String,
       enum: ["hourly", "monthly"],

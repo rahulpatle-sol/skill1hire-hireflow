@@ -203,6 +203,50 @@ const rateSession = asyncHandler(async (req, res, next) => {
   res.json(new ApiResponse(200, null, "Session rated. Thank you!"));
 });
 
+// @desc    Mentor creates a session and adds candidates
+// @route   POST /api/v1/mentor/sessions
+// @access  Private (mentor)
+const createGroupSession = asyncHandler(async (req, res, next) => {
+  const { topic, scheduledAt, durationMinutes, meetLink, candidateIds } = req.body;
+
+  const profile = await MentorProfile.findOne({ user: req.user._id });
+  if (!profile) return next(new ApiError(404, "Mentor profile required"));
+
+  const session = await MentorSession.create({
+    mentor: req.user._id,
+    sessionType: "hourly", // default logic
+    topic,
+    scheduledAt: new Date(scheduledAt),
+    durationMinutes: durationMinutes || 60,
+    meetLink,
+    amount: profile.hourlyRate || 0,
+    currency: profile.currency,
+    isGroup: true,
+    attendees: candidateIds || [], // Array of User object IDs
+    status: "confirmed"
+  });
+
+  // Automatically find candidates by IDs and send emails
+  if (candidateIds && candidateIds.length > 0) {
+    const User = require("../../models/User.model");
+    const candidates = await User.find({ _id: { $in: candidateIds } });
+    
+    const { enqueueEmail } = require("../../services/queue.service");
+    const { generateSessionUpdateEmail } = require("../../utils/emails/mentor.emails");
+    
+    if (enqueueEmail) {
+      candidates.forEach(c => {
+        if (c.email) {
+           const html = generateSessionUpdateEmail("confirmed", meetLink, `You have been invited to a group session: ${topic}`);
+           enqueueEmail(c.email, "Group Mentor Session Invitation", html).catch(console.error);
+        }
+      });
+    }
+  }
+
+  res.status(201).json(new ApiResponse(201, { session }, "Group session created and invitations sent!"));
+});
+
 module.exports = {
   getMentorProfile,
   updateMentorProfile,
@@ -211,4 +255,5 @@ module.exports = {
   getMentorSessions,
   updateSession,
   rateSession,
+  createGroupSession,
 };

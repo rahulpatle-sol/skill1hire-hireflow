@@ -2,7 +2,7 @@ const router = require("express").Router();
 const { protect, authorizeRoles } = require("../../middleware/auth.middleware");
 const {
   getMentorProfile, updateMentorProfile, getAllMentors,
-  bookSession, getMentorSessions, updateSession, rateSession,
+  bookSession, getMentorSessions, updateSession, rateSession, createGroupSession
 } = require("../../controllers/mentor/mentor.controller");
 
 // Public
@@ -19,6 +19,7 @@ router.use(protect, authorizeRoles("mentor"));
 router.get("/profile", getMentorProfile);
 router.put("/profile", updateMentorProfile);
 router.get("/sessions", getMentorSessions);
+router.post("/sessions", createGroupSession);
 router.put("/sessions/:id", updateSession);
 
 module.exports = router;
